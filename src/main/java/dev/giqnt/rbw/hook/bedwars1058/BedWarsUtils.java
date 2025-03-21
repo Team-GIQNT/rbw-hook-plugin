@@ -58,6 +58,10 @@ public class BedWarsUtils implements Listener {
     }
 
     public CompletableFuture<Void> createGame(final int id, final String mapName, final List<List<Player>> teams) {
+        final var rankedGame = this.arenaToGame.values().stream().filter(game -> game.id() == id).findFirst();
+        if (rankedGame.isPresent()) {
+            return CompletableFuture.completedFuture(null);
+        }
         CompletableFuture<Void> promise = new CompletableFuture<>();
         gameQueue.offer(new RankedGame(id, mapName, teams.stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableSet()), teams, promise));
         processNext();

@@ -2,6 +2,7 @@ package dev.giqnt.rbw.hook.bedwars1058;
 
 import com.andrei1058.bedwars.api.BedWars;
 import com.andrei1058.bedwars.api.arena.GameState;
+import com.andrei1058.bedwars.api.arena.IArena;
 import com.andrei1058.bedwars.api.arena.stats.DefaultStatistics;
 import com.andrei1058.bedwars.api.configuration.ConfigPath;
 import com.andrei1058.bedwars.api.events.gameplay.GameEndEvent;
@@ -132,10 +133,21 @@ public class BedWarsUtils implements Listener {
                     }
                 });
                 arenaStartFutures.put(arena.getArenaName(), future);
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (arena.getStatus() != GameState.waiting) return;
+                    future.completeExceptionally(new GameCreateException("Game not getting started"));
+                    cancelArenaStart(arena);
+                }, 30);
             }
         });
 
         return future;
+    }
+
+    private void cancelArenaStart(final IArena arena) {
+        this.arenaStartFutures.remove(arena.getArenaName());
+        this.arenaToGame.remove(arena.getArenaName());
+        new ArrayList<>(arena.getPlayers()).forEach(player -> arena.removePlayer(player, false));
     }
 
     @EventHandler
@@ -145,12 +157,10 @@ public class BedWarsUtils implements Listener {
         if (arena.getStatus() == GameState.playing) return;
         final var future = this.arenaStartFutures.get(arenaName);
         if (future == null) return;
-        this.arenaStartFutures.remove(arenaName);
-        this.arenaToGame.remove(arenaName);
+        cancelArenaStart(arena);
         future.completeExceptionally(new GameCreateException(
                 String.format("Player `%s` left the game", event.getPlayer().getName())
         ));
-        new ArrayList<>(arena.getPlayers()).forEach(player -> arena.removePlayer(player, false));
     }
 
     @EventHandler

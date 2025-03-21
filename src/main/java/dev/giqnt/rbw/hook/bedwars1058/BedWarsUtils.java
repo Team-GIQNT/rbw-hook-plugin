@@ -137,10 +137,12 @@ public class BedWarsUtils implements Listener {
     @EventHandler
     public void onArenaLeave(final PlayerLeaveArenaEvent event) {
         final var arena = event.getArena();
+        final var arenaName = arena.getArenaName();
         if (arena.getStatus() == GameState.playing) return;
-        final var future = this.arenaStartFutures.get(arena.getArenaName());
+        final var future = this.arenaStartFutures.get(arenaName);
         if (future == null) return;
-        this.arenaStartFutures.remove(arena.getArenaName());
+        this.arenaStartFutures.remove(arenaName);
+        this.arenaToGame.remove(arenaName);
         future.completeExceptionally(new GameCreateException(
                 String.format("Player `%s` left the game", event.getPlayer().getName())
         ));

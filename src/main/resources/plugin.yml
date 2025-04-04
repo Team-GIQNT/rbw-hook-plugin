@@ -3,6 +3,7 @@ name: BedWars1058-RBW-Hook
 version: 1.0
 author: g1qnt
 description: RBW hook plugin for BedWars1058 plugin
-depend:
+softdepend:
   - BedWars1058
+  - BedWarsProxy
 prefix: RBW Hook

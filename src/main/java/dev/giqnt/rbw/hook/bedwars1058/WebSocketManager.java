@@ -6,8 +6,8 @@ import com.google.gson.reflect.TypeToken;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.Nullable;
 
+import javax.annotation.Nullable;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
@@ -43,13 +43,14 @@ public class WebSocketManager {
     public void start() {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             final var listener = new WebSocketListener(this);
-            this.ws = HttpClient
-                    .newHttpClient()
-                    .newWebSocketBuilder()
-                    .connectTimeout(Duration.ofSeconds(10))
-                    .header("Authorization", "Bearer " + plugin.configHolder.token())
-                    .buildAsync(URI.create(String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.configHolder.rbwName())), listener)
-                    .join();
+            try (final var client = HttpClient.newHttpClient()) {
+                this.ws = client
+                        .newWebSocketBuilder()
+                        .connectTimeout(Duration.ofSeconds(10))
+                        .header("Authorization", "Bearer " + plugin.configHolder.token())
+                        .buildAsync(URI.create(String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.configHolder.rbwName())), listener)
+                        .join();
+            }
         });
     }
 
@@ -123,11 +124,7 @@ public class WebSocketManager {
                     sendPlayerStatus(playerName, false);
                     return;
                 }
-                if (!player.isOnline() || plugin.bedWars.isInGame(player)) {
-                    sendPlayerStatus(player.getName(), false);
-                    return;
-                }
-                sendPlayerStatus(player.getName(), true);
+                sendPlayerStatus(player.getName(), plugin.bedWars.isReady(player));
             }
             case "create_game" -> {
                 final int id = data.get("id").getAsInt();
@@ -137,7 +134,7 @@ public class WebSocketManager {
                 final var offlinePlayers = new ArrayList<String>();
                 final List<List<Player>> teamPlayers = teamsInfo.stream().map(team -> team.stream().map((name) -> {
                     final Player player = Bukkit.getPlayerExact(name);
-                    if (player == null || this.plugin.bedWars.isInGame(player)) {
+                    if (player == null || !this.plugin.bedWars.isReady(player)) {
                         offlinePlayers.add(name);
                         return null;
                     }
@@ -147,7 +144,7 @@ public class WebSocketManager {
                     sendGameCreateFailure(id, offlinePlayers);
                     return;
                 }
-                this.plugin.bedWars.createGame(id, mapName, teamPlayers).handle((a, ex) -> {
+                this.plugin.gameQueue.queue(id, mapName, teamPlayers).handle((a, ex) -> {
                     if (ex != null) {
                         plugin.getLogger().log(Level.SEVERE, "Failed to create game", ex);
                         if (ex instanceof GameCreateException) {

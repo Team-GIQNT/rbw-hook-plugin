@@ -1,29 +1,35 @@
 package dev.giqnt.rbw.hook.bedwars1058;
 
 import com.google.gson.Gson;
+import dev.giqnt.rbw.hook.bedwars1058.adapter.Adapter;
+import dev.giqnt.rbw.hook.bedwars1058.adapter.AdapterFactory;
 import org.bukkit.Bukkit;
+import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
-import java.util.stream.Collectors;
 
 public class HookPlugin extends JavaPlugin {
     public ConfigHolder configHolder;
     public final Gson gson = new Gson();
     private WebSocketManager webSocketManager;
     public APIUtils api;
-    public BedWarsUtils bedWars;
+    public Adapter bedWars;
+    public GameQueueManager gameQueue;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         this.configHolder = ConfigHolder.load(getConfig());
         this.api = new APIUtils(this);
-        this.bedWars = new BedWarsUtils(this);
+        this.bedWars = AdapterFactory.getAdapter(this);
+        this.gameQueue = new GameQueueManager(this);
         this.webSocketManager = new WebSocketManager(this);
-        Bukkit.getPluginManager().registerEvents(bedWars, this);
+        if (this.bedWars instanceof Listener adapter) {
+            Bukkit.getPluginManager().registerEvents(adapter, this);
+        }
         Bukkit.getScheduler().runTask(this, () -> webSocketManager.start());
         Bukkit.getScheduler().runTaskTimer(this, this::updateMaps, 20 * 30, 20 * 30);
     }
@@ -35,9 +41,7 @@ public class HookPlugin extends JavaPlugin {
 
     public void updateMaps() {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-            final var maps = this.bedWars.getMapsInfo().values().stream()
-                    .flatMap(innerMap -> innerMap.values().stream())
-                    .collect(Collectors.toList());
+            final var maps = this.bedWars.getMaps();
             final HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(String.format("https://rbw.giqnt.dev/project/%s/maps", configHolder.rbwName())))
                     .header("Authorization", "Bearer " + configHolder.token())

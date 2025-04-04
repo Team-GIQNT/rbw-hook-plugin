@@ -8,26 +8,15 @@ version = "1.0"
 
 repositories {
     mavenCentral()
-    mavenLocal()
     maven {
         name = "spigot"
         url = uri("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
-    }
-    maven {
-        name = "andrei1058"
-        url = uri("https://repo.andrei1058.dev/releases/")
-    }
-    maven {
-        url = uri("https://oss.sonatype.org/content/repositories/snapshots")
-    }
-    maven {
-        url = uri("https://oss.sonatype.org/content/repositories/central")
     }
 }
 
 dependencies {
     compileOnly("org.spigotmc:spigot-api:1.21.4-R0.1-SNAPSHOT")
-    compileOnly("com.andrei1058.bedwars:bedwars-api:25.2")
+    compileOnly(fileTree("libs") { include("*.jar") })
     implementation("com.google.code.gson:gson:2.12.1")
 }
 

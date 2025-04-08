@@ -26,13 +26,13 @@ import java.net.http.HttpRequest;
 import java.util.*;
 import java.util.concurrent.*;
 
-public class MultiArenaAdapter implements Adapter, Listener {
+public class BedWars1058Adapter implements Adapter, Listener {
 
     private final HookPlugin plugin;
     private final ConcurrentMap<String, RankedGame> arenaToGame = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, CompletableFuture<Void>> arenaStartFutures = new ConcurrentHashMap<>();
 
-    public MultiArenaAdapter(@Nonnull final HookPlugin plugin) {
+    public BedWars1058Adapter(@Nonnull final HookPlugin plugin) {
         this.plugin = plugin;
     }
 

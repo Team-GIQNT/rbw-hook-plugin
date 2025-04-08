@@ -4,7 +4,7 @@ plugins {
     id("io.freefair.lombok") version "8.13.1"
 }
 
-group = "dev.giqnt.rbw.hook.bedwars1058"
+group = "dev.giqnt.rbw.hook"
 version = "1.0"
 
 repositories {

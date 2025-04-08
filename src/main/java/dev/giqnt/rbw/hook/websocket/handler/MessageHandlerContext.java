@@ -1,7 +1,7 @@
-package dev.giqnt.rbw.hook.bedwars1058.websocket.handler;
+package dev.giqnt.rbw.hook.websocket.handler;
 
 import com.google.gson.JsonObject;
-import dev.giqnt.rbw.hook.bedwars1058.HookPlugin;
+import dev.giqnt.rbw.hook.HookPlugin;
 
 import java.util.function.BiConsumer;
 import java.util.logging.Logger;

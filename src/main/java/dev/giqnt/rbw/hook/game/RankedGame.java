@@ -1,4 +1,4 @@
-package dev.giqnt.rbw.hook.bedwars1058.game;
+package dev.giqnt.rbw.hook.game;
 
 import org.bukkit.entity.Player;
 

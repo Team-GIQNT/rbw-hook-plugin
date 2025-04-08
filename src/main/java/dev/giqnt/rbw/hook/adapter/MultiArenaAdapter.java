@@ -1,4 +1,4 @@
-package dev.giqnt.rbw.hook.bedwars1058.adapter;
+package dev.giqnt.rbw.hook.adapter;
 
 import com.andrei1058.bedwars.api.arena.GameState;
 import com.andrei1058.bedwars.api.arena.IArena;
@@ -11,9 +11,9 @@ import com.andrei1058.bedwars.api.events.player.PlayerLeaveArenaEvent;
 import com.andrei1058.bedwars.arena.Arena;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import dev.giqnt.rbw.hook.bedwars1058.HookPlugin;
-import dev.giqnt.rbw.hook.bedwars1058.game.GameCreateException;
-import dev.giqnt.rbw.hook.bedwars1058.game.RankedGame;
+import dev.giqnt.rbw.hook.HookPlugin;
+import dev.giqnt.rbw.hook.game.GameCreateException;
+import dev.giqnt.rbw.hook.game.RankedGame;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;

@@ -1,4 +1,4 @@
-package dev.giqnt.rbw.hook.bedwars1058;
+package dev.giqnt.rbw.hook;
 
 import org.bukkit.configuration.file.FileConfiguration;
 import org.jetbrains.annotations.NotNull;

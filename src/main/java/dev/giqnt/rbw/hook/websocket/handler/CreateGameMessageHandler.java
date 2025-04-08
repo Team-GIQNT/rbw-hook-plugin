@@ -1,9 +1,9 @@
-package dev.giqnt.rbw.hook.bedwars1058.websocket.handler;
+package dev.giqnt.rbw.hook.websocket.handler;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
-import dev.giqnt.rbw.hook.bedwars1058.game.GameCreateException;
+import dev.giqnt.rbw.hook.game.GameCreateException;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;

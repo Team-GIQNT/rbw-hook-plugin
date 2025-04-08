@@ -1,9 +1,8 @@
-main: dev.giqnt.rbw.hook.bedwars1058.HookPlugin
-name: BedWars1058-RBW-Hook
+main: dev.giqnt.rbw.hook.HookPlugin
+name: rbw-hook
 version: 1.0
 author: g1qnt
-description: RBW hook plugin for BedWars1058 plugin
+description: RBW bot hook plugin
 softdepend:
   - BedWars1058
-  - BedWarsProxy
 prefix: RBW Hook

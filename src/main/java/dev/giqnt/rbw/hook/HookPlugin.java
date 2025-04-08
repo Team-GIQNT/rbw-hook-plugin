@@ -1,10 +1,10 @@
-package dev.giqnt.rbw.hook.bedwars1058;
+package dev.giqnt.rbw.hook;
 
 import com.google.gson.Gson;
-import dev.giqnt.rbw.hook.bedwars1058.adapter.Adapter;
-import dev.giqnt.rbw.hook.bedwars1058.adapter.AdapterFactory;
-import dev.giqnt.rbw.hook.bedwars1058.game.GameCreationManager;
-import dev.giqnt.rbw.hook.bedwars1058.websocket.WebSocketManager;
+import dev.giqnt.rbw.hook.adapter.Adapter;
+import dev.giqnt.rbw.hook.adapter.AdapterFactory;
+import dev.giqnt.rbw.hook.game.GameCreationManager;
+import dev.giqnt.rbw.hook.websocket.WebSocketManager;
 import org.bukkit.Bukkit;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;

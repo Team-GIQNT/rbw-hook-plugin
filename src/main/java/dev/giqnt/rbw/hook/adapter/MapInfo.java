@@ -1,4 +1,4 @@
-package dev.giqnt.rbw.hook.bedwars1058.adapter;
+package dev.giqnt.rbw.hook.adapter;
 
 import javax.annotation.Nullable;
 import java.util.Objects;

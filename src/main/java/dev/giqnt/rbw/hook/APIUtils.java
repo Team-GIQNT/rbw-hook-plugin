@@ -1,4 +1,4 @@
-package dev.giqnt.rbw.hook.bedwars1058;
+package dev.giqnt.rbw.hook;
 
 import java.io.IOException;
 import java.net.http.HttpClient;

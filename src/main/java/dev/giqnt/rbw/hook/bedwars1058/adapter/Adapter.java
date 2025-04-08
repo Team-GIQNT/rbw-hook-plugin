@@ -1,7 +1,6 @@
 package dev.giqnt.rbw.hook.bedwars1058.adapter;
 
-import dev.giqnt.rbw.hook.bedwars1058.MapInfo;
-import dev.giqnt.rbw.hook.bedwars1058.RankedGame;
+import dev.giqnt.rbw.hook.bedwars1058.game.RankedGame;
 import org.bukkit.entity.Player;
 
 import java.util.Collection;

@@ -3,6 +3,8 @@ package dev.giqnt.rbw.hook.bedwars1058;
 import com.google.gson.Gson;
 import dev.giqnt.rbw.hook.bedwars1058.adapter.Adapter;
 import dev.giqnt.rbw.hook.bedwars1058.adapter.AdapterFactory;
+import dev.giqnt.rbw.hook.bedwars1058.game.GameCreationManager;
+import dev.giqnt.rbw.hook.bedwars1058.websocket.WebSocketManager;
 import org.bukkit.Bukkit;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -17,26 +19,33 @@ public class HookPlugin extends JavaPlugin {
     private WebSocketManager webSocketManager;
     public APIUtils api;
     public Adapter bedWars;
-    public GameQueueManager gameQueue;
+    public GameCreationManager gameCreationManager;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         this.configHolder = ConfigHolder.load(getConfig());
-        this.api = new APIUtils(this);
+        this.api = new APIUtils();
         this.bedWars = AdapterFactory.getAdapter(this);
-        this.gameQueue = new GameQueueManager(this);
+        this.gameCreationManager = new GameCreationManager(this);
         this.webSocketManager = new WebSocketManager(this);
         if (this.bedWars instanceof Listener adapter) {
             Bukkit.getPluginManager().registerEvents(adapter, this);
         }
-        Bukkit.getScheduler().runTask(this, () -> webSocketManager.start());
+        webSocketManager.connect().toCompletableFuture().join();
         Bukkit.getScheduler().runTaskTimer(this, this::updateMaps, 20 * 30, 20 * 30);
     }
 
     @Override
     public void onDisable() {
-        this.webSocketManager.stop();
+        if (this.webSocketManager != null) {
+            this.webSocketManager.close();
+            this.webSocketManager = null;
+        }
+        if (this.gameCreationManager != null) {
+            this.gameCreationManager.shutdown();
+            this.gameCreationManager = null;
+        }
     }
 
     public void updateMaps() {

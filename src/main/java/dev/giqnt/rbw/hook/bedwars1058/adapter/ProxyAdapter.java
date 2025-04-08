@@ -6,10 +6,9 @@ import com.andrei1058.bedwars.proxy.api.CachedArena;
 import com.andrei1058.bedwars.proxy.api.event.ArenaCacheRemoveEvent;
 import com.andrei1058.bedwars.proxy.arenamanager.ArenaManager;
 import com.andrei1058.bedwars.proxy.language.LanguageManager;
-import dev.giqnt.rbw.hook.bedwars1058.GameCreateException;
 import dev.giqnt.rbw.hook.bedwars1058.HookPlugin;
-import dev.giqnt.rbw.hook.bedwars1058.MapInfo;
-import dev.giqnt.rbw.hook.bedwars1058.RankedGame;
+import dev.giqnt.rbw.hook.bedwars1058.game.GameCreateException;
+import dev.giqnt.rbw.hook.bedwars1058.game.RankedGame;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -59,7 +58,7 @@ public class ProxyAdapter implements Adapter, Listener {
         }
         for (final var team : teams) {
             if (team.isEmpty()) continue;
-            party.createParty(team.getFirst(), team.subList(1, team.size()).toArray(new Player[0]));
+            party.createParty(team.get(0), team.subList(1, team.size()).toArray(new Player[0]));
         }
 
         final var defaultLang = LanguageManager.get().getDefaultLanguage();
@@ -84,7 +83,7 @@ public class ProxyAdapter implements Adapter, Listener {
                 Bukkit.getScheduler().callSyncMethod(plugin, (Callable<Void>) () -> {
                     for (final var team : teams) {
                         if (team.isEmpty()) continue;
-                        selectedArena.addPlayer(team.getFirst(), null);
+                        selectedArena.addPlayer(team.get(0), null);
                     }
                     return null;
                 }).get();

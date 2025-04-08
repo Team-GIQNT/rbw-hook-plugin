@@ -1,6 +1,7 @@
 plugins {
     id("java")
     id("com.gradleup.shadow") version "8.3.6"
+    id("io.freefair.lombok") version "8.13.1"
 }
 
 group = "dev.giqnt.rbw.hook.bedwars1058"
@@ -20,7 +21,17 @@ dependencies {
     implementation("com.google.code.gson:gson:2.12.1")
 }
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
 tasks {
+    compileJava {
+        options.release = 17
+    }
+
     build {
         finalizedBy(shadowJar)
     }

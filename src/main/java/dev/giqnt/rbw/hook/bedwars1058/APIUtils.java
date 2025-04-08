@@ -5,10 +5,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-public record APIUtils(HookPlugin plugin) {
+public class APIUtils {
     public HttpResponse<String> request(final HttpRequest request) throws IOException, InterruptedException {
-        try (final var client = HttpClient.newHttpClient()) {
-            return client.send(request, HttpResponse.BodyHandlers.ofString());
-        }
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 }

@@ -14,6 +14,7 @@ import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.game.GameCreateException;
 import dev.giqnt.rbw.hook.game.RankedGame;
+import lombok.SneakyThrows;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -25,6 +26,7 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.logging.Level;
 
 public class BedWars1058Adapter implements Adapter, Listener {
 
@@ -60,10 +62,11 @@ public class BedWars1058Adapter implements Adapter, Listener {
         return arena == null || !arena.isPlayer(player);
     }
 
+    @SneakyThrows
     @Override
-    public CompletableFuture<Void> createGame(@Nonnull final RankedGame game) {
+    public void createGame(@Nonnull final RankedGame game) {
         if (arenaToGame.values().stream().anyMatch(g -> g.id() == game.id())) {
-            return CompletableFuture.failedFuture(new GameCreateException("Game already created"));
+            throw new GameCreateException("Game already created");
         }
         final List<List<Player>> teams = game.teams();
         final String mapName = game.mapName();
@@ -79,45 +82,39 @@ public class BedWars1058Adapter implements Adapter, Listener {
                         && a.getMaxInTeam() >= teamSize)
                 .toList();
         if (availableArenas.isEmpty()) {
-            return CompletableFuture.failedFuture(new GameCreateException("No available arenas found for map " + mapName));
+            throw new GameCreateException("No available arenas found for map " + mapName);
         }
         final var selectedArena = availableArenas.get(ThreadLocalRandom.current().nextInt(availableArenas.size()));
         arenaToGame.put(selectedArena.getArenaName(), game);
-
-        CompletableFuture<Void> future = new CompletableFuture<>();
-        CompletableFuture.runAsync(() -> {
-            try {
-                Bukkit.getScheduler().callSyncMethod(plugin, (Callable<Void>) () -> {
-                    for (final var player : game.players()) {
-                        selectedArena.addPlayer(player, true);
-                    }
-                    return null;
-                }).get();
-            } catch (Exception e) {
-                throw new CompletionException(e);
-            }
-        }).whenComplete((result, throwable) -> {
-            if (throwable != null) {
-                plugin.getLogger().severe("Failed to add players to arena: " + throwable.getMessage());
-                future.completeExceptionally(new GameCreateException("Failed to add players to arena", throwable));
-            } else {
-                selectedArena.setTeamAssigner(arena -> {
-                    for (int i = 0; i < teamCount; i++) {
-                        var team = arena.getTeams().get(i);
-                        team.addPlayers(teams.get(i).toArray(new Player[0]));
-                    }
-                });
-                arenaStartFutures.put(selectedArena.getArenaName(), future);
-                // Schedule a delayed check to see if the game starts
-                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    if (selectedArena.getStatus() != GameState.waiting) return;
-                    future.completeExceptionally(new GameCreateException("Game not getting started"));
-                    cancelArenaStart(selectedArena);
-                }, 30L);
+        try {
+            Bukkit.getScheduler().callSyncMethod(plugin, (Callable<Void>) () -> {
+                for (final var player : game.players()) {
+                    selectedArena.addPlayer(player, true);
+                }
+                return null;
+            }).get();
+        } catch (InterruptedException | ExecutionException ex) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to add players to arena", ex);
+            throw new GameCreateException("Failed to add players to arena", ex);
+        }
+        selectedArena.setTeamAssigner(arena -> {
+            for (int i = 0; i < teamCount; i++) {
+                var team = arena.getTeams().get(i);
+                team.addPlayers(teams.get(i).toArray(new Player[0]));
             }
         });
-
-        return future;
+        final var future = new CompletableFuture<Void>();
+        arenaStartFutures.put(selectedArena.getArenaName(), future);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (selectedArena.getStatus() != GameState.waiting) return;
+            future.completeExceptionally(new GameCreateException("Game not getting started"));
+            cancelArenaStart(selectedArena);
+        }, 30L);
+        try {
+            future.join();
+        } catch (CompletionException ex) {
+            throw ex.getCause();
+        }
     }
 
     private void cancelArenaStart(final IArena arena) {

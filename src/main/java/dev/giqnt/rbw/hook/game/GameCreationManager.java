@@ -67,27 +67,16 @@ public class GameCreationManager {
      */
     private void processQueue() {
         try {
-            RankedGame nextGame;
-            while ((nextGame = gameQueue.poll()) != null) {
-                final RankedGame currentGame = nextGame;
+            RankedGame game;
+            while ((game = gameQueue.poll()) != null) {
                 try {
-                    this.plugin.getLogger().info("Processing game #" + currentGame.id() + " on map " + currentGame.mapName());
-
-                    // Process the game and wait for it to complete
-                    this.plugin.bedWars.createGame(currentGame)
-                            .whenComplete((result, ex) -> {
-                                if (ex != null) {
-                                    this.plugin.getLogger().log(Level.SEVERE, "Failed to create game #" + currentGame.id(), ex);
-                                    currentGame.promise().completeExceptionally(ex);
-                                } else {
-                                    this.plugin.getLogger().info("Successfully created game #" + currentGame.id());
-                                    currentGame.promise().complete(null);
-                                }
-                            })
-                            .join(); // Wait for current game creation to complete before processing next
-                } catch (Exception e) {
-                    this.plugin.getLogger().log(Level.SEVERE, "Error processing game #" + currentGame.id(), e);
-                    currentGame.promise().completeExceptionally(e);
+                    this.plugin.getLogger().info("Processing game #" + game.id() + " on map " + game.mapName());
+                    this.plugin.bedWars.createGame(game);
+                    this.plugin.getLogger().info("Successfully created game #" + game.id());
+                    game.promise().complete(null);
+                } catch (Exception ex) {
+                    this.plugin.getLogger().log(Level.SEVERE, "Failed to create game #" + game.id(), ex);
+                    game.promise().completeExceptionally(ex);
                 }
             }
         } catch (Exception e) {

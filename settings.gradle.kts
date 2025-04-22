@@ -1,1 +1,1 @@
-rootProject.name = "rbw-hook-plugin"
+rootProject.name = "rbw-hook"

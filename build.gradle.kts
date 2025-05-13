@@ -1,6 +1,6 @@
 plugins {
     id("java")
-    id("com.gradleup.shadow") version "8.3.6"
+    id("com.gradleup.shadow") version "9.0.0-beta13"
     id("io.freefair.lombok") version "8.13.1"
 }
 
@@ -37,7 +37,9 @@ tasks {
     }
 
     shadowJar {
-        isEnableRelocation = true
+        enableRelocation = true
+        relocationPrefix = "${project.group}.libs"
+        minimize()
 
         doLast {
             copy {
@@ -48,4 +50,3 @@ tasks {
         }
     }
 }
-

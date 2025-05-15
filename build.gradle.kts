@@ -1,5 +1,5 @@
 plugins {
-    id("java")
+    id("java-library")
     id("com.gradleup.shadow") version "9.0.0-beta13"
     id("io.freefair.lombok") version "8.13.1"
 }
@@ -16,6 +16,7 @@ repositories {
 }
 
 dependencies {
+    api("org.jspecify:jspecify:1.0.0")
     compileOnly("org.spigotmc:spigot-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly(fileTree("libs") { include("*.jar") })
     implementation("com.google.code.gson:gson:2.12.1")

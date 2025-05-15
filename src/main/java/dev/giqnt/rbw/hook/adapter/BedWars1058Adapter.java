@@ -18,8 +18,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.jspecify.annotations.NonNull;
 
-import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpRequest;
@@ -33,7 +33,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
     private final ConcurrentMap<String, RankedGame> arenaToGame = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, CompletableFuture<Void>> arenaStartFutures = new ConcurrentHashMap<>();
 
-    public BedWars1058Adapter(@Nonnull final HookPlugin plugin) {
+    public BedWars1058Adapter(@NonNull final HookPlugin plugin) {
         this.plugin = plugin;
     }
 
@@ -62,7 +62,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
     }
 
     @Override
-    public void createGame(@Nonnull final RankedGame game) throws GameCreateException {
+    public void createGame(@NonNull final RankedGame game) throws GameCreateException {
         if (arenaToGame.values().stream().anyMatch(g -> g.id() == game.id())) {
             throw new GameCreateException("Game already created");
         }

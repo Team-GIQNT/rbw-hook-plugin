@@ -6,7 +6,7 @@ import com.google.gson.reflect.TypeToken;
 import dev.giqnt.rbw.hook.game.GameCreateException;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +14,7 @@ import java.util.logging.Level;
 
 public class CreateGameMessageHandler extends MessageHandler {
     @Override
-    public void execute(@NotNull final MessageHandlerContext context) {
+    public void execute(@NonNull final MessageHandlerContext context) {
         final var data = context.data();
         final var plugin = context.plugin();
         try {

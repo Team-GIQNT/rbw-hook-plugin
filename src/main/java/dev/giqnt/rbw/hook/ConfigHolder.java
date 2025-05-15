@@ -1,14 +1,14 @@
 package dev.giqnt.rbw.hook;
 
 import org.bukkit.configuration.file.FileConfiguration;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import java.util.Objects;
 
 public record ConfigHolder(
-        @NotNull String rbwName,
-        @NotNull String token,
-        @NotNull String groupPrefix
+        @NonNull String rbwName,
+        @NonNull String token,
+        @NonNull String groupPrefix
 ) {
     public static ConfigHolder load(final FileConfiguration config) {
         return new ConfigHolder(

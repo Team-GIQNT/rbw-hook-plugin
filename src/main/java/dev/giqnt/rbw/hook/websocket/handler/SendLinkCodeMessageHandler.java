@@ -3,11 +3,11 @@ package dev.giqnt.rbw.hook.websocket.handler;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 public class SendLinkCodeMessageHandler extends MessageHandler {
     @Override
-    public void execute(@NotNull final MessageHandlerContext context) {
+    public void execute(@NonNull final MessageHandlerContext context) {
         final var data = context.data();
         final String playerName = data.get("name").getAsString();
         final String code = data.get("code").getAsString();

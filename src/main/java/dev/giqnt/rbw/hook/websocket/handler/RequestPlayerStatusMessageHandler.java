@@ -3,11 +3,11 @@ package dev.giqnt.rbw.hook.websocket.handler;
 import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 public class RequestPlayerStatusMessageHandler extends MessageHandler {
     @Override
-    public void execute(@NotNull MessageHandlerContext context) {
+    public void execute(@NonNull MessageHandlerContext context) {
         final String playerName = context.data().get("name").getAsString();
         final Player player = Bukkit.getPlayerExact(playerName);
 

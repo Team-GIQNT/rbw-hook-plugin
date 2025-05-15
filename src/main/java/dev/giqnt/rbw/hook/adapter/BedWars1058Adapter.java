@@ -40,7 +40,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
     @Override
     public Collection<MapInfo> getMaps() {
         final Set<MapInfo> maps = new HashSet<>();
-        final String groupPrefix = plugin.configHolder.groupPrefix();
+        final String groupPrefix = plugin.getConfigHolder().groupPrefix();
         for (final var arena : Arena.getArenas()) {
             final String group = arena.getGroup();
             if (!group.startsWith(groupPrefix)) continue;
@@ -193,15 +193,15 @@ public class BedWars1058Adapter implements Adapter, Listener {
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(String.format("https://rbw.giqnt.dev/project/%s/score/%s",
-                        plugin.configHolder.rbwName(), rankedGame.id())))
-                .header("Authorization", "Bearer " + plugin.configHolder.token())
+                        plugin.getConfigHolder().rbwName(), rankedGame.id())))
+                .header("Authorization", "Bearer " + plugin.getConfigHolder().token())
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(plugin.gson.toJson(data)))
+                .POST(HttpRequest.BodyPublishers.ofString(plugin.getGson().toJson(data)))
                 .build();
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                plugin.api.request(httpRequest);
+                plugin.getApi().request(httpRequest);
             } catch (IOException | InterruptedException e) {
                 plugin.getLogger().severe("Failed to send game data to rbw bot: " + e.getMessage());
                 throw new RuntimeException("Failed to send game data to rbw bot", e);
@@ -212,7 +212,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
     @EventHandler
     public void onArenaJoin(final PlayerJoinArenaEvent event) {
         final var arena = event.getArena();
-        if (arena == null || !arena.getGroup().startsWith(plugin.configHolder.groupPrefix())) {
+        if (arena == null || !arena.getGroup().startsWith(plugin.getConfigHolder().groupPrefix())) {
             return;
         }
         final RankedGame rankedGame = arenaToGame.get(arena.getArenaName());

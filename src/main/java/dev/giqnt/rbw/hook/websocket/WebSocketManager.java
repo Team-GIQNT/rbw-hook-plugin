@@ -35,7 +35,7 @@ public class WebSocketManager implements WebSocket.Listener {
 
     public WebSocketManager(final HookPlugin plugin) {
         this.plugin = plugin;
-        this.uri = URI.create(String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.configHolder.rbwName()));
+        this.uri = URI.create(String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.getConfigHolder().rbwName()));
         this.client = HttpClient.newHttpClient();
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
         this.senderExecutor = Executors.newSingleThreadExecutor();
@@ -51,7 +51,7 @@ public class WebSocketManager implements WebSocket.Listener {
     private CompletionStage<Void> doConnect() {
         return client.newWebSocketBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
-                .header("Authorization", "Bearer " + plugin.configHolder.token())
+                .header("Authorization", "Bearer " + plugin.getConfigHolder().token())
                 .buildAsync(uri, this)
                 .handle((ws, throwable) -> {
                     if (throwable != null) {

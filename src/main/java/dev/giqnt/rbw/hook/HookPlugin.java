@@ -5,6 +5,7 @@ import dev.giqnt.rbw.hook.adapter.Adapter;
 import dev.giqnt.rbw.hook.adapter.AdapterFactory;
 import dev.giqnt.rbw.hook.game.GameCreationManager;
 import dev.giqnt.rbw.hook.websocket.WebSocketManager;
+import lombok.Getter;
 import org.bukkit.Bukkit;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -14,12 +15,17 @@ import java.net.URI;
 import java.net.http.HttpRequest;
 
 public class HookPlugin extends JavaPlugin {
-    public ConfigHolder configHolder;
-    public final Gson gson = new Gson();
+    @Getter
+    private final Gson gson = new Gson();
+    @Getter
+    private ConfigHolder configHolder;
     private WebSocketManager webSocketManager;
-    public APIUtils api;
-    public Adapter bedWars;
-    public GameCreationManager gameCreationManager;
+    @Getter
+    private APIUtils api;
+    @Getter
+    private Adapter bedWars;
+    @Getter
+    private GameCreationManager gameCreationManager;
 
     @Override
     public void onEnable() {

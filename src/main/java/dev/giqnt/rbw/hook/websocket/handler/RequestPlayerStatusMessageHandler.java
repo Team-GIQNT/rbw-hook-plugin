@@ -11,7 +11,7 @@ public class RequestPlayerStatusMessageHandler extends MessageHandler {
         final String playerName = context.data().get("name").getAsString();
         final Player player = Bukkit.getPlayerExact(playerName);
 
-        boolean isReady = player != null && context.plugin().bedWars.isReady(player);
+        boolean isReady = player != null && context.plugin().getBedWars().isReady(player);
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("name", playerName);
         responseData.addProperty("isReady", isReady);

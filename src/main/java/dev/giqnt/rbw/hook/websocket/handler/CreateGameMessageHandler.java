@@ -21,7 +21,7 @@ public class CreateGameMessageHandler extends MessageHandler {
             final int id = data.get("id").getAsInt();
             final String mapName = data.get("mapId").getAsString();
             final var typeToken = new TypeToken<ArrayList<ArrayList<String>>>() {};
-            final List<List<String>> teamsInfo = plugin.gson.fromJson(
+            final List<List<String>> teamsInfo = plugin.getGson().fromJson(
                     data.get("teams").getAsJsonArray(),
                     typeToken.getType()
             );
@@ -32,7 +32,7 @@ public class CreateGameMessageHandler extends MessageHandler {
                     .map(team -> team.stream()
                             .map(name -> {
                                 final Player player = Bukkit.getPlayerExact(name);
-                                if (player == null || !plugin.bedWars.isReady(player)) {
+                                if (player == null || !plugin.getBedWars().isReady(player)) {
                                     offlinePlayers.add(name);
                                     return null;
                                 }
@@ -46,7 +46,7 @@ public class CreateGameMessageHandler extends MessageHandler {
             }
 
             // Create the game
-            plugin.gameCreationManager
+            plugin.getGameCreationManager()
                     .queue(id, mapName, teamPlayers)
                     .handle((result, ex) -> {
                         if (ex != null) {

@@ -71,7 +71,7 @@ public class GameCreationManager {
             while ((game = gameQueue.poll()) != null) {
                 try {
                     this.plugin.getLogger().info("Processing game #" + game.id() + " on map " + game.mapName());
-                    this.plugin.bedWars.createGame(game);
+                    this.plugin.getBedWars().createGame(game);
                     this.plugin.getLogger().info("Successfully created game #" + game.id());
                     game.promise().complete(null);
                 } catch (Exception ex) {

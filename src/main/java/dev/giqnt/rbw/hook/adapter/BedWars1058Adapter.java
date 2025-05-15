@@ -14,7 +14,6 @@ import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.game.GameCreateException;
 import dev.giqnt.rbw.hook.game.RankedGame;
-import lombok.SneakyThrows;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -62,9 +61,8 @@ public class BedWars1058Adapter implements Adapter, Listener {
         return arena == null || !arena.isPlayer(player);
     }
 
-    @SneakyThrows
     @Override
-    public void createGame(@Nonnull final RankedGame game) {
+    public void createGame(@Nonnull final RankedGame game) throws GameCreateException {
         if (arenaToGame.values().stream().anyMatch(g -> g.id() == game.id())) {
             throw new GameCreateException("Game already created");
         }
@@ -113,7 +111,10 @@ public class BedWars1058Adapter implements Adapter, Listener {
         try {
             future.join();
         } catch (CompletionException ex) {
-            throw ex.getCause();
+            if (ex.getCause() instanceof GameCreateException exception) {
+                throw exception;
+            }
+            throw new RuntimeException("Failed to create game", ex);
         }
     }
 

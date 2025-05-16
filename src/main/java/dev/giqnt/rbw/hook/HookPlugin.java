@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import dev.giqnt.rbw.hook.adapter.Adapter;
 import dev.giqnt.rbw.hook.adapter.AdapterFactory;
 import dev.giqnt.rbw.hook.game.GameCreationManager;
+import dev.giqnt.rbw.hook.utils.APIUtils;
 import dev.giqnt.rbw.hook.websocket.WebSocketManager;
 import lombok.Getter;
 import org.bukkit.Bukkit;
@@ -11,8 +12,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpRequest;
 
 public class HookPlugin extends JavaPlugin {
     @Getter
@@ -31,7 +30,7 @@ public class HookPlugin extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         this.configHolder = ConfigHolder.load(getConfig());
-        this.api = new APIUtils();
+        this.api = new APIUtils(this.configHolder.rbwName(), this.configHolder.token());
         this.bedWars = AdapterFactory.getAdapter(this);
         this.gameCreationManager = new GameCreationManager(this);
         this.webSocketManager = new WebSocketManager(this);
@@ -57,14 +56,8 @@ public class HookPlugin extends JavaPlugin {
     public void updateMaps() {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             final var maps = this.bedWars.getMaps();
-            final HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(String.format("https://rbw.giqnt.dev/project/%s/maps", configHolder.rbwName())))
-                    .header("Authorization", "Bearer " + configHolder.token())
-                    .header("Content-Type", "application/json")
-                    .PUT(HttpRequest.BodyPublishers.ofString(gson.toJson(maps)))
-                    .build();
             try {
-                final var response = this.api.request(request);
+                final var response = this.api.request("/maps", "PUT", gson.toJson(maps));
                 if (response.statusCode() != 200) {
                     throw new RuntimeException(String.format("Failed to send maps to rbw bot: (%d) %s", response.statusCode(), response.body()));
                 }

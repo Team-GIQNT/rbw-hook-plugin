@@ -21,8 +21,6 @@ import org.bukkit.event.Listener;
 import org.jspecify.annotations.NonNull;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpRequest;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.Level;
@@ -191,17 +189,9 @@ public class BedWars1058Adapter implements Adapter, Listener {
         JsonObject data = new JsonObject();
         data.add("teams", teamsData);
 
-        HttpRequest httpRequest = HttpRequest.newBuilder()
-                .uri(URI.create(String.format("https://rbw.giqnt.dev/project/%s/score/%s",
-                        plugin.getConfigHolder().rbwName(), rankedGame.id())))
-                .header("Authorization", "Bearer " + plugin.getConfigHolder().token())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(plugin.getGson().toJson(data)))
-                .build();
-
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                plugin.getApi().request(httpRequest);
+                plugin.getApi().request("/score/" + rankedGame.id(), "POST", plugin.getGson().toJson(data));
             } catch (IOException | InterruptedException e) {
                 plugin.getLogger().severe("Failed to send game data to rbw bot: " + e.getMessage());
                 throw new RuntimeException("Failed to send game data to rbw bot", e);

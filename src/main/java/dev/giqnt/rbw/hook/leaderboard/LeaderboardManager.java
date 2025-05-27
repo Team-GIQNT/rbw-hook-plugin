@@ -27,11 +27,8 @@ public class LeaderboardManager {
     private void fetchAll() {
         try {
             for (final LeaderboardCategory category : LeaderboardCategory.values()) {
-                final var response = plugin.getApi().request(String.format("/leaderboard?limit=10&sortBy=%s", category.name().toLowerCase()), "GET", null);
-                if (response.statusCode() != 200) {
-                    throw new RuntimeException(String.format("Failed to fetch leaderboard data for category %s: (%d) %s", category, response.statusCode(), response.body()));
-                }
-                final JsonObject body = JsonParser.parseString(response.body()).getAsJsonObject();
+                final String response = plugin.getApi().request(String.format("/leaderboard?limit=10&sortBy=%s", category.name().toLowerCase()), "GET", null);
+                final JsonObject body = JsonParser.parseString(response).getAsJsonObject();
                 if (!body.get("success").getAsBoolean()) {
                     throw new RuntimeException(String.format("Failed to fetch leaderboard data for category %s: %s", category, body.get("message").getAsString()));
                 }
@@ -44,7 +41,7 @@ public class LeaderboardManager {
                 });
                 leaderboards.put(category, new Leaderboard(List.copyOf(entries)));
             }
-        } catch (final IOException | InterruptedException | RuntimeException e) {
+        } catch (final IOException | RuntimeException e) {
             plugin.getLogger().log(Level.SEVERE, "Failed to fetch leaderboard data", e);
         }
     }

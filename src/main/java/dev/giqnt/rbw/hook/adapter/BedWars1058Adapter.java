@@ -192,7 +192,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 plugin.getApi().request("/score/" + rankedGame.id(), "POST", plugin.getGson().toJson(data));
-            } catch (IOException | InterruptedException e) {
+            } catch (IOException e) {
                 plugin.getLogger().severe("Failed to send game data to rbw bot: " + e.getMessage());
                 throw new RuntimeException("Failed to send game data to rbw bot", e);
             }

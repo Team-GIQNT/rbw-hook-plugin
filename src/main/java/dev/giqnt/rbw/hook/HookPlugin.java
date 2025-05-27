@@ -15,6 +15,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
+import java.util.logging.Level;
 
 public class HookPlugin extends JavaPlugin {
     @Getter
@@ -72,12 +73,9 @@ public class HookPlugin extends JavaPlugin {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             final var maps = this.bedWars.getMaps();
             try {
-                final var response = this.api.request("/maps", "PUT", gson.toJson(maps));
-                if (response.statusCode() != 200) {
-                    throw new RuntimeException(String.format("Failed to send maps to rbw bot: (%d) %s", response.statusCode(), response.body()));
-                }
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException("Failed to push maps data", e);
+                this.api.request("/maps", "PUT", gson.toJson(maps));
+            } catch (IOException e) {
+                getLogger().log(Level.SEVERE, "Failed to update maps data", e);
             }
         });
     }

@@ -22,6 +22,7 @@ dependencies {
     api("org.jspecify:jspecify:1.0.0")
     compileOnly("org.spigotmc:spigot-api:1.21.4-R0.1-SNAPSHOT")
     compileOnly(fileTree("libs") { include("*.jar") })
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.12.1")
     compileOnly("me.clip:placeholderapi:2.11.6")
 }

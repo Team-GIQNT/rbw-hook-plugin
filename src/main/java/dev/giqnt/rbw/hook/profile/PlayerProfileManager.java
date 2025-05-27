@@ -48,15 +48,20 @@ public class PlayerProfileManager implements Listener {
     @Nullable
     private PlayerProfile fetchProfile(final String name) {
         try {
-            final var response = plugin.getApi().request("/player/" + name, "GET", null);
-            final var statusCode = response.statusCode();
-            if (statusCode == 404) {
+            final var result = plugin.getApi().request("/player/" + name, "GET", null, response -> {
+                if (response.code() == 404) {
+                    return null;
+                }
+                if (!response.isSuccessful()) {
+                    throw new IOException(String.format("Failed to fetch profile data for player %s: (%d) %s", name, response.code(), response.body()));
+                }
+                final var responseBody = response.body();
+                return responseBody == null ? "" : responseBody.string();
+            });
+            if (result == null) {
                 return null;
             }
-            if (response.statusCode() != 200) {
-                throw new RuntimeException(String.format("Failed to fetch profile data for player %s: (%d) %s", name, response.statusCode(), response.body()));
-            }
-            final JsonObject data = JsonParser.parseString(response.body()).getAsJsonObject();
+            final JsonObject data = JsonParser.parseString(result).getAsJsonObject();
             if (!data.get("success").getAsBoolean()) {
                 throw new RuntimeException(String.format("Failed to fetch profile data for player %s: %s", name, data.get("message").getAsString()));
             }
@@ -69,7 +74,7 @@ public class PlayerProfileManager implements Listener {
                 }
             }
             return new PlayerProfile(Map.copyOf(statsMap), Map.of());
-        } catch (IOException | InterruptedException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }

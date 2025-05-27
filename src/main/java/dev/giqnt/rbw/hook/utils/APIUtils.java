@@ -1,42 +1,58 @@
 package dev.giqnt.rbw.hook.utils;
 
+import okhttp3.*;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 
 public class APIUtils {
-    private final HttpClient client = HttpClient.newHttpClient();
+    private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
+    private final OkHttpClient client;
     private final String baseUrl;
     private final String token;
 
-    public APIUtils(final String projectName, final String token) {
+    public APIUtils(@NonNull final String projectName,
+                    @NonNull final String token) {
         this.baseUrl = String.format("https://rbw.giqnt.dev/project/%s/", projectName);
         this.token = token;
+        this.client = new OkHttpClient();
     }
 
-    private HttpRequest.Builder createRequestBuilder(final String endpoint) {
-        return HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + endpoint))
-                .setHeader("Authorization", "Bearer " + token)
-                .setHeader("Content-Type", "application/json");
-    }
-
-    public HttpResponse<String> request(
+    @NonNull
+    public String request(
             @NonNull final String endpoint,
             @NonNull final String method,
             @Nullable final String body
-    ) throws IOException, InterruptedException {
-        final var builder = createRequestBuilder(endpoint);
-        if (body == null) {
-            builder.method(method, HttpRequest.BodyPublishers.noBody());
-        } else {
-            builder.method(method, HttpRequest.BodyPublishers.ofString(body));
+    ) throws IOException {
+        return request(endpoint, method, body, response -> {
+            if (!response.isSuccessful()) {
+                throw new IOException("Unexpected code " + response.code() + ": " + response.message());
+            }
+            final var responseBody = response.body();
+            return responseBody == null ? "" : responseBody.string();
+        });
+    }
+
+    public <T> T request(
+            @NonNull final String endpoint,
+            @NonNull final String method,
+            @Nullable final String body,
+            @NonNull final ResponseHandler<T> handler
+    ) throws IOException {
+        final Request request = new Request.Builder()
+                .url(baseUrl + endpoint)
+                .addHeader("Authorization", "Bearer " + token)
+                .addHeader("Content-Type", "application/json")
+                .method(method, body == null ? null : RequestBody.create(body, JSON))
+                .build();
+        try (final Response response = client.newCall(request).execute()) {
+            return handler.handle(response);
         }
-        return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    @FunctionalInterface
+    public interface ResponseHandler<T> {
+        T handle(Response response) throws IOException;
     }
 }

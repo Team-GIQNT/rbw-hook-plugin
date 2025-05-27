@@ -4,65 +4,68 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.websocket.handler.*;
+import okhttp3.*;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.WebSocket;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
-public class WebSocketManager implements WebSocket.Listener {
+public class WebSocketManager {
     private final HookPlugin plugin;
     private final URI uri;
-    private final HttpClient client;
-    private WebSocket webSocket;
-    private final ScheduledExecutorService scheduler;
+    private final OkHttpClient client;
+    private final ScheduledExecutorService scheduler; // reconnection
     private final ExecutorService senderExecutor;
     private final BlockingQueue<String> messageQueue;
     private final AtomicBoolean manuallyClosed = new AtomicBoolean(false);
-    private final AtomicInteger retryCount = new AtomicInteger(0);
-    private final Duration initialDelay = Duration.ofSeconds(1);
-    private final Duration maxDelay = Duration.ofSeconds(60);
+    private final Duration reconnectDelay = Duration.ofSeconds(5);
     private final Map<String, MessageHandler> handlerMap = Map.of(
             "request_player_status", new RequestPlayerStatusMessageHandler(),
             "send_link_code", new SendLinkCodeMessageHandler(),
             "create_game", new CreateGameMessageHandler()
     );
+    private volatile WebSocket webSocket;
 
     public WebSocketManager(final HookPlugin plugin) {
         this.plugin = plugin;
-        this.uri = URI.create(String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.getConfigHolder().rbwName()));
-        this.client = HttpClient.newHttpClient();
+        this.uri = URI.create(
+                String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.getConfigHolder().rbwName())
+        );
+        this.client = new OkHttpClient.Builder()
+                .pingInterval(Duration.ofSeconds(30))
+                .build();
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
         this.senderExecutor = Executors.newSingleThreadExecutor();
         this.messageQueue = new LinkedBlockingQueue<>();
         startMessageDispatcher();
     }
 
-    public CompletionStage<Void> connect() {
+    public void connect() {
         manuallyClosed.set(false);
-        return doConnect();
+        doConnect();
     }
 
-    private CompletionStage<Void> doConnect() {
-        return client.newWebSocketBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .header("Authorization", "Bearer " + plugin.getConfigHolder().token())
-                .buildAsync(uri, this)
-                .handle((ws, throwable) -> {
-                    if (throwable != null) {
-                        plugin.getLogger().log(Level.SEVERE, "[ws] Failed to connect to " + uri, throwable);
-                        scheduleReconnect();
-                    } else {
-                        this.webSocket = ws;
-                        retryCount.set(0);
-                    }
-                    return null;
-                });
+    private void doConnect() {
+        final Request request = new Request.Builder()
+                .url(uri.toString())
+                .addHeader("Authorization", "Bearer " + plugin.getConfigHolder().token())
+                .build();
+        this.webSocket = client.newWebSocket(request, new InternalWebSocketListener());
+        plugin.getLogger().log(Level.INFO, "[ws] Connecting...");
+    }
+
+    private void scheduleReconnect() {
+        if (manuallyClosed.get()) {
+            plugin.getLogger().log(Level.INFO, "[ws] Manual close, skipping reconnect");
+            return;
+        }
+        plugin.getLogger().log(Level.INFO, String.format("[ws] Reconnecting in %d ms...", reconnectDelay.toMillis()));
+        scheduler.schedule(this::doConnect, reconnectDelay.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     public void sendText(String message) {
@@ -71,16 +74,25 @@ public class WebSocketManager implements WebSocket.Listener {
 
     private void startMessageDispatcher() {
         senderExecutor.submit(() -> {
-            while (true) {
+            while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    String message = messageQueue.take();
-                    if (webSocket == null) return;
-                    webSocket.sendText(message, true).join();
+                    String msg = messageQueue.take();
+                    final WebSocket ws = this.webSocket;
+                    if (ws != null) {
+                        boolean sent = ws.send(msg);
+                        if (!sent) {
+                            plugin.getLogger().log(Level.WARNING, "[ws] Failed to send: " + msg);
+                        }
+                    } else {
+                        plugin.getLogger().log(Level.WARNING, "[ws] Not connected, dropping: " + msg);
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 } catch (Exception e) {
-                    plugin.getLogger().log(Level.SEVERE, "[ws] Failed to send message", e);
+                    plugin.getLogger().log(Level.SEVERE,
+                            "[ws] Error dispatching message", e
+                    );
                 }
             }
         });
@@ -88,33 +100,23 @@ public class WebSocketManager implements WebSocket.Listener {
 
     public void close() {
         manuallyClosed.set(true);
-        if (webSocket != null) {
-            webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "Normal closure");
+        final WebSocket ws = this.webSocket;
+        if (ws != null) {
+            ws.close(1000, "Normal closure");
         }
         scheduler.shutdown();
         senderExecutor.shutdownNow();
-    }
-
-    private void scheduleReconnect() {
-        if (manuallyClosed.get()) {
-            return;
-        }
-        long delay = Math.min(
-                initialDelay.multipliedBy((long) Math.pow(2, retryCount.get())).toMillis(),
-                maxDelay.toMillis()
-        );
-        scheduler.schedule(this::doConnect, delay, TimeUnit.MILLISECONDS);
-        retryCount.incrementAndGet();
+        client.dispatcher().executorService().shutdown();
     }
 
     private CompletionStage<Void> handleMessage(final String message) {
         return CompletableFuture.runAsync(() -> {
-            final JsonObject json = JsonParser.parseString(message).getAsJsonObject();
-            final String type = json.get("type").getAsString();
-            final JsonObject data = json.get("data").getAsJsonObject();
-            final MessageHandler handler = handlerMap.get(type);
+            JsonObject json = JsonParser.parseString(message).getAsJsonObject();
+            String type = json.get("type").getAsString();
+            JsonObject data = json.get("data").getAsJsonObject();
+            MessageHandler handler = handlerMap.get(type);
             if (handler == null) {
-                plugin.getLogger().log(Level.WARNING, String.format("[ws] No handler found for type '%s'", type));
+                plugin.getLogger().log(Level.WARNING, String.format("[ws] No handler for type '%s'", type));
                 return;
             }
             handler.execute(new MessageHandlerContext(
@@ -122,42 +124,47 @@ public class WebSocketManager implements WebSocket.Listener {
                     plugin.getLogger(),
                     data,
                     (msgType, msgData) -> {
-                        final JsonObject newMsg = new JsonObject();
-                        newMsg.addProperty("type", msgType);
-                        newMsg.add("data", msgData);
-                        sendText(newMsg.toString());
+                        JsonObject out = new JsonObject();
+                        out.addProperty("type", msgType);
+                        out.add("data", msgData);
+                        sendText(out.toString());
                     }
             ));
         });
     }
 
-    // WebSocket.Listener callbacks
-    @Override
-    public void onOpen(WebSocket webSocket) {
-        plugin.getLogger().log(Level.INFO, "[ws] Connected to " + uri);
-        webSocket.request(1);
-    }
+    private class InternalWebSocketListener extends WebSocketListener {
+        @Override
+        public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
+            plugin.getLogger().log(Level.INFO, "[ws] Connected");
+        }
 
-    @Override
-    public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-        handleMessage(data.toString()).whenComplete(((r, throwable) -> {
-            if (throwable != null) {
-                plugin.getLogger().log(Level.SEVERE, "[ws] Failed to handle received message", throwable);
-            }
-        }));
-        webSocket.request(1);
-        return null;
-    }
+        @Override
+        public void onMessage(@NonNull WebSocket webSocket, @NonNull String text) {
+            plugin.getLogger().log(Level.FINE, "[ws] Received: " + text);
+            handleMessage(text).whenComplete((v, t) -> {
+                if (t != null) {
+                    plugin.getLogger().log(Level.SEVERE, "[ws] Handler error", t);
+                }
+            });
+        }
 
-    @Override
-    public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-        plugin.getLogger().log(Level.INFO, String.format("[ws] Connection closed with status code: %d, reason: %s", statusCode, reason));
-        scheduleReconnect();
-        return WebSocket.Listener.super.onClose(webSocket, statusCode, reason);
-    }
+        @Override
+        public void onClosing(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
+            plugin.getLogger().log(Level.INFO, String.format("[ws] Closing: %d, %s", code, reason));
+            webSocket.close(code, reason);
+        }
 
-    @Override
-    public void onError(WebSocket webSocket, Throwable error) {
-        plugin.getLogger().log(Level.SEVERE, "[ws] An error occurred", error);
+        @Override
+        public void onClosed(@NonNull WebSocket webSocket, int code, @NonNull String reason) {
+            plugin.getLogger().log(Level.INFO, String.format("[ws] Closed: %d, %s", code, reason));
+            scheduleReconnect();
+        }
+
+        @Override
+        public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, @Nullable Response response) {
+            plugin.getLogger().log(Level.SEVERE, "[ws] Connection failure", t);
+            scheduleReconnect();
+        }
     }
 }

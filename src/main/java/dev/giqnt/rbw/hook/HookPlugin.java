@@ -45,7 +45,7 @@ public class HookPlugin extends JavaPlugin {
         this.gameCreationManager = new GameCreationManager(this);
         this.webSocketManager = new WebSocketManager(this);
 
-        webSocketManager.connect().toCompletableFuture().join();
+        webSocketManager.connect();
         this.leaderboardManager.init();
         this.playerProfileManager.init();
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {

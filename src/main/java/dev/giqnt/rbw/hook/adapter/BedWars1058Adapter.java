@@ -9,12 +9,15 @@ import com.andrei1058.bedwars.api.events.gameplay.GameStateChangeEvent;
 import com.andrei1058.bedwars.api.events.player.PlayerJoinArenaEvent;
 import com.andrei1058.bedwars.api.events.player.PlayerLeaveArenaEvent;
 import com.andrei1058.bedwars.arena.Arena;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.game.GameCreateException;
 import dev.giqnt.rbw.hook.game.RankedGame;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -158,14 +161,20 @@ public class BedWars1058Adapter implements Adapter, Listener {
         if (arena == null || arena.getStatsHolder() == null) {
             return;
         }
+
         final String arenaName = arena.getArenaName();
         final RankedGame rankedGame = arenaToGame.remove(arenaName);
         if (rankedGame == null) {
             return;
         }
-        JsonArray teamsData = new JsonArray();
+
+        final JsonArray teamsData = new JsonArray();
         final UUID winningTeamId = event.getTeamWinner().getIdentity();
+
+
         arena.getTeams().forEach(team -> {
+            if (!team.getIdentity().equals(winningTeamId)) return;
+
             JsonArray playersData = new JsonArray();
             team.getMembers().forEach(member -> {
                 JsonObject playerData = new JsonObject();
@@ -181,13 +190,43 @@ public class BedWars1058Adapter implements Adapter, Listener {
                 });
                 playersData.add(playerData);
             });
-            JsonObject teamData = new JsonObject();
-            teamData.addProperty("win", team.getIdentity().equals(winningTeamId));
-            teamData.add("players", playersData);
-            teamsData.add(teamData);
+
+            JsonObject teamObj = new JsonObject();
+            teamObj.addProperty("win", true);
+            teamObj.add("players", playersData);
+            teamsData.add(teamObj);
         });
+
+
+        JsonArray loserPlayersData = new JsonArray();
+        for (UUID uuid : event.getLosers()) {
+            OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);
+
+            JsonObject playerData = new JsonObject();
+            playerData.addProperty("name", player.getName());
+
+            arena.getStatsHolder().get((Player) player).ifPresentOrElse(stats -> {
+                stats.getStatistic(DefaultStatistics.KILLS)
+                        .ifPresent(stat -> playerData.addProperty("kills", (int) stat.getValue()));
+                stats.getStatistic(DefaultStatistics.BEDS_DESTROYED)
+                        .ifPresent(stat -> playerData.addProperty("bedsBroken", (int) stat.getValue()));
+            }, () -> {
+                playerData.addProperty("kills", 0);
+                playerData.addProperty("bedsBroken", 0);
+            });
+
+            loserPlayersData.add(playerData);
+        }
+
+        JsonObject loserTeamObj = new JsonObject();
+        loserTeamObj.addProperty("win", false);
+        loserTeamObj.add("players", loserPlayersData);
+        teamsData.add(loserTeamObj);
+
+
         JsonObject data = new JsonObject();
         data.add("teams", teamsData);
+
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {

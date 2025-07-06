@@ -71,11 +71,11 @@ public class BedWars1058Adapter implements Adapter, Listener {
 
         final var availableArenas = Arena.getArenas().stream()
                 .filter(a -> a.getDisplayName().equals(mapName)
-                        && a.getStatus() == GameState.waiting
-                        && a.getPlayers().isEmpty()
-                        && a.getMaxPlayers() >= teamCount * teamSize
-                        && a.getTeams().size() >= teamCount
-                        && a.getMaxInTeam() >= teamSize)
+                             && a.getStatus() == GameState.waiting
+                             && a.getPlayers().isEmpty()
+                             && a.getMaxPlayers() >= teamCount * teamSize
+                             && a.getTeams().size() >= teamCount
+                             && a.getMaxInTeam() >= teamSize)
                 .toList();
         if (availableArenas.isEmpty()) {
             throw new GameCreateException("No available arenas found for map " + mapName);

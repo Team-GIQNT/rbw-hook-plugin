@@ -166,11 +166,12 @@ public class BedWars1058Adapter implements Adapter, Listener {
         JsonArray teamsData = new JsonArray();
         final UUID winningTeamId = event.getTeamWinner().getIdentity();
         arena.getTeams().forEach(team -> {
-            JsonArray playersData = new JsonArray();
-            team.getMembers().forEach(member -> {
+            final JsonArray playersData = new JsonArray();
+            //noinspection deprecation
+            team.getMembersCache().forEach(member -> {
                 JsonObject playerData = new JsonObject();
                 playerData.addProperty("name", member.getName());
-                arena.getStatsHolder().get(member).ifPresentOrElse(stats -> {
+                arena.getStatsHolder().get(member.getUniqueId()).ifPresentOrElse(stats -> {
                     stats.getStatistic(DefaultStatistics.KILLS)
                             .ifPresent(stat -> playerData.addProperty("kills", (int) stat.getValue()));
                     stats.getStatistic(DefaultStatistics.BEDS_DESTROYED)
@@ -181,12 +182,12 @@ public class BedWars1058Adapter implements Adapter, Listener {
                 });
                 playersData.add(playerData);
             });
-            JsonObject teamData = new JsonObject();
+            final JsonObject teamData = new JsonObject();
             teamData.addProperty("win", team.getIdentity().equals(winningTeamId));
             teamData.add("players", playersData);
             teamsData.add(teamData);
         });
-        JsonObject data = new JsonObject();
+        final JsonObject data = new JsonObject();
         data.add("teams", teamsData);
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {

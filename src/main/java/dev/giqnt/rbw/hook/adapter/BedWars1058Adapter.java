@@ -69,7 +69,8 @@ public class BedWars1058Adapter implements Adapter, Listener {
         final int teamSize = teams.stream().mapToInt(List::size).max().orElse(0);
 
         final var availableArenas = Arena.getArenas().stream()
-                .filter(a -> a.getDisplayName().equals(mapName)
+                .filter(a -> a.getGroup().startsWith(plugin.getConfigHolder().groupPrefix())
+                             && a.getDisplayName().equals(mapName)
                              && a.getStatus() == GameState.waiting
                              && a.getPlayers().isEmpty()
                              && a.getMaxPlayers() >= teamCount * teamSize

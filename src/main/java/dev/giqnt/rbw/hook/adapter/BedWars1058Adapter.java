@@ -42,10 +42,9 @@ public class BedWars1058Adapter implements Adapter, Listener {
         for (final var arena : Arena.getArenas()) {
             final String group = arena.getGroup();
             if (!group.startsWith(groupPrefix)) continue;
-            final String category = group.substring(groupPrefix.length());
             final String mapName = arena.getDisplayName();
             final int maxBuildY = arena.getConfig().getInt(ConfigPath.ARENA_CONFIGURATION_MAX_BUILD_Y);
-            maps.add(new MapInfo(category, mapName, maxBuildY));
+            maps.add(new MapInfo(group, mapName, maxBuildY));
         }
         return Collections.unmodifiableSet(maps);
     }

@@ -1,3 +1,11 @@
 rbw-name: rbw
 token: TOKEN
 group-prefix: ""
+
+# Proxy only supports HTTP type for now
+proxy:
+  enabled: false
+  username: ""
+  password: ""
+  ip: "127.0.0.1"
+  port: 8585

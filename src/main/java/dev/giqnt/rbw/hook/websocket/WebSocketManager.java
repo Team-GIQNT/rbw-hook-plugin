@@ -5,9 +5,12 @@ import com.google.gson.JsonParser;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.websocket.handler.*;
 import okhttp3.*;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Map;
@@ -36,9 +39,24 @@ public class WebSocketManager {
         this.uri = URI.create(
                 String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.getConfigHolder().rbwName())
         );
-        this.client = new OkHttpClient.Builder()
-                .pingInterval(Duration.ofSeconds(30))
-                .build();
+        final OkHttpClient.Builder builder = new OkHttpClient.Builder().pingInterval(Duration.ofSeconds(30));
+        if (plugin.getConfig().getBoolean("proxy.enabled", false)) {
+            final FileConfiguration config = plugin.getConfig();
+            final String ip = config.getString("proxy.ip", "127.0.0.1");
+            final int port = config.getInt("proxy.port", 8585);
+            final String username = config.getString("proxy.username", "");
+            final String password = config.getString("proxy.password", "");
+            builder.proxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(ip, port)))
+                    .proxyAuthenticator((route, response) -> {
+                        String credential = Credentials.basic(username, password);
+                        return response
+                                .request()
+                                .newBuilder()
+                                .header("Proxy-Authorization", credential)
+                                .build();
+                    });
+        }
+        this.client = builder.build();
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
         this.senderExecutor = Executors.newSingleThreadExecutor();
         this.messageQueue = new LinkedBlockingQueue<>();

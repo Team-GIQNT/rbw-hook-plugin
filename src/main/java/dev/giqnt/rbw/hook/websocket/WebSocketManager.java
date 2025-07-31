@@ -5,11 +5,18 @@ import com.google.gson.JsonParser;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.websocket.handler.*;
 import okhttp3.*;
+import okhttp3.dnsoverhttps.DnsOverHttps;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
-import java.net.URI;
+import java.io.IOException;
+import java.net.*;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,12 +40,28 @@ public class WebSocketManager {
 
     public WebSocketManager(final HookPlugin plugin) {
         this.plugin = plugin;
+
         this.uri = URI.create(
                 String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.getConfigHolder().rbwName())
         );
-        this.client = new OkHttpClient.Builder()
-                .pingInterval(Duration.ofSeconds(30))
-                .build();
+        OkHttpClient.Builder builder = new OkHttpClient.Builder().pingInterval(Duration.ofSeconds(30));
+        if (plugin.getConfig().getBoolean("proxy.enabled", false)) {
+            FileConfiguration config = plugin.getConfig();
+            int port = config.getInt("proxy.port", 8585);
+            String ip = config.getString("proxy.ip", "127.0.0.1");
+            String username = config.getString("proxy.username", "");
+            String password = config.getString("proxy.password", "");
+            builder.proxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(ip, port))).proxyAuthenticator(
+                    (route, response) -> {
+                        String credential = Credentials.basic(username, password);
+                        return response
+                                .request()
+                                .newBuilder()
+                                .header("Proxy-Authorization", credential)
+                                .build();
+                    });
+        }
+        this.client = builder.build();
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
         this.senderExecutor = Executors.newSingleThreadExecutor();
         this.messageQueue = new LinkedBlockingQueue<>();

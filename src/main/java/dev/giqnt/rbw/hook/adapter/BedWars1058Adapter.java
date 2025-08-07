@@ -202,6 +202,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
 
     @EventHandler
     public void onArenaJoin(final PlayerJoinArenaEvent event) {
+        if (event.isSpectator()) return;
         final var arena = event.getArena();
         if (arena == null || !arena.getGroup().startsWith(plugin.getConfigHolder().groupPrefix())) {
             return;

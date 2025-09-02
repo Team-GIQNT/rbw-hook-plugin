@@ -59,28 +59,36 @@ public class BedWars1058Adapter implements Adapter, Listener {
     }
 
     @Override
-    public void createGame(@NonNull final RankedGame game) throws GameCreateException {
+    public @NonNull String createGame(@NonNull final RankedGame game) throws GameCreateException {
         if (arenaToGame.values().stream().anyMatch(g -> g.id().equals(game.id()))) {
             throw new GameCreateException("Game already created");
         }
         final List<List<Player>> teams = game.teams();
-        final String mapName = game.mapName();
+        final List<String> mapNames = game.mapNames();
+        final Set<String> mapNameSet = mapNames == null ? null : Set.copyOf(mapNames);
         final int teamCount = teams.size();
         final int teamSize = teams.stream().mapToInt(List::size).max().orElse(0);
 
-        final var availableArenas = Arena.getArenas().stream()
-                .filter(a -> a.getGroup().startsWith(plugin.getConfigHolder().groupPrefix())
-                        && a.getDisplayName().equals(mapName)
-                        && a.getStatus() == GameState.waiting
-                        && a.getPlayers().isEmpty()
-                        && a.getMaxPlayers() >= teamCount * teamSize
-                        && a.getTeams().size() >= teamCount
-                        && a.getMaxInTeam() >= teamSize)
-                .toList();
-        if (availableArenas.isEmpty()) {
-            throw new GameCreateException("No available arenas found for map " + mapName);
+        final Map<String, List<IArena>> mapToArenas = new HashMap<>();
+        for (final IArena arena : Arena.getArenas()) {
+            if (!arena.getGroup().startsWith(plugin.getConfigHolder().groupPrefix())
+                    || arena.getStatus() != GameState.waiting
+                    || !arena.getPlayers().isEmpty()
+                    || arena.getMaxPlayers() < teamCount * teamSize
+                    || arena.getTeams().size() < teamCount
+                    || arena.getMaxInTeam() < teamSize) {
+                continue;
+            }
+            if (mapNameSet == null || mapNameSet.contains(arena.getDisplayName())) {
+                mapToArenas.computeIfAbsent(arena.getDisplayName(), k -> new ArrayList<>()).add(arena);
+            }
         }
-        final var selectedArena = availableArenas.get(ThreadLocalRandom.current().nextInt(availableArenas.size()));
+        if (mapToArenas.isEmpty()) {
+            throw new GameCreateException("No available arena found");
+        }
+        final List<List<IArena>> arenaGroups = List.copyOf(mapToArenas.values());
+        final List<IArena> arenas = arenaGroups.get(ThreadLocalRandom.current().nextInt(arenaGroups.size()));
+        final IArena selectedArena = arenas.get(ThreadLocalRandom.current().nextInt(arenas.size()));
         arenaToGame.put(selectedArena.getArenaName(), game);
         try {
             Bukkit.getScheduler().callSyncMethod(plugin, (Callable<Void>) () -> {
@@ -114,6 +122,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
             }
             throw new RuntimeException("Failed to create game", ex);
         }
+        return selectedArena.getDisplayName();
     }
 
     private void cancelArenaStart(final IArena arena) {

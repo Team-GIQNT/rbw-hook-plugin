@@ -1,12 +1,15 @@
 package dev.giqnt.rbw.hook.websocket.handler;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
+import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.game.GameCreateException;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,11 +18,11 @@ import java.util.logging.Level;
 public class CreateGameMessageHandler extends MessageHandler {
     @Override
     public void execute(@NonNull final MessageHandlerContext context) {
-        final var data = context.data();
-        final var plugin = context.plugin();
+        final JsonObject data = context.data();
+        final HookPlugin plugin = context.plugin();
         try {
-            final String id = data.get("id").getAsString();
-            final String mapName = data.get("mapId").getAsString();
+            final String id = data.getAsJsonPrimitive("id").getAsString();
+            final List<String> mapNames = resolveMapNames(data);
             final var typeToken = new TypeToken<ArrayList<ArrayList<String>>>() {};
             final List<List<String>> teamsInfo = plugin.getGson().fromJson(
                     data.get("teams").getAsJsonArray(),
@@ -47,7 +50,7 @@ public class CreateGameMessageHandler extends MessageHandler {
 
             // Create the game
             plugin.getGameCreationManager()
-                    .queue(id, mapName, teamPlayers)
+                    .queue(id, mapNames, teamPlayers)
                     .handle((result, ex) -> {
                         if (ex != null) {
                             plugin.getLogger().log(Level.SEVERE, "Failed to create game " + id, ex);
@@ -72,6 +75,22 @@ public class CreateGameMessageHandler extends MessageHandler {
                 plugin.getLogger().severe("Could not send failure response for malformed game creation request");
             }
         }
+    }
+
+    private @Nullable List<String> resolveMapNames(final JsonObject data) {
+        final JsonElement rawMapId = data.get("mapId");
+        if (rawMapId != null && rawMapId.isJsonPrimitive()) {
+            return List.of(rawMapId.getAsString());
+        }
+        final JsonElement rawMapIds = data.get("mapIds");
+        if (rawMapIds != null && rawMapIds.isJsonArray()) {
+            final List<String> mapIds = new ArrayList<>();
+            for (final JsonElement el : rawMapIds.getAsJsonArray()) {
+                if (el.isJsonPrimitive()) mapIds.add(el.getAsString());
+            }
+            return List.copyOf(mapIds);
+        }
+        return null;
     }
 
     /**

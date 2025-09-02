@@ -2,6 +2,7 @@ package dev.giqnt.rbw.hook.game;
 
 import dev.giqnt.rbw.hook.HookPlugin;
 import org.bukkit.entity.Player;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -29,23 +30,21 @@ public class GameCreationManager {
     /**
      * Queues a new ranked game for processing
      *
-     * @param id      The unique game identifier
-     * @param mapName The map on which the game will be played
-     * @param teams   List of teams containing players
+     * @param id       The unique game identifier
+     * @param mapNames The maps on which the game will be played
+     * @param teams    List of teams containing players
      * @return A CompletableFuture that completes when the game is created
      */
-    public CompletableFuture<Void> queue(final String id, final String mapName, final List<List<Player>> teams) {
-        CompletableFuture<Void> promise = new CompletableFuture<>();
+    public CompletableFuture<Void> queue(final String id, @Nullable final List<String> mapNames, final List<List<Player>> teams) {
+        final CompletableFuture<Void> promise = new CompletableFuture<>();
 
         // Create a set of all players from all teams
         final Set<Player> allPlayers = teams.stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toUnmodifiableSet());
 
-        RankedGame game = new RankedGame(id, mapName, allPlayers, teams, promise);
+        final RankedGame game = new RankedGame(id, mapNames, allPlayers, teams, promise);
         gameQueue.offer(game);
-
-        this.plugin.getLogger().info("Game #" + id + " queued with " + allPlayers.size() + " players on map " + mapName);
 
         // Trigger queue processing
         triggerQueueProcessing();
@@ -70,9 +69,9 @@ public class GameCreationManager {
             RankedGame game;
             while ((game = gameQueue.poll()) != null) {
                 try {
-                    this.plugin.getLogger().info("Processing game #" + game.id() + " on map " + game.mapName());
-                    this.plugin.getBedWars().createGame(game);
-                    this.plugin.getLogger().info("Successfully created game #" + game.id());
+                    this.plugin.getLogger().info("Processing game #" + game.id());
+                    final String mapName = this.plugin.getBedWars().createGame(game);
+                    this.plugin.getLogger().info("Successfully created game #" + game.id() + " on map " + mapName);
                     game.promise().complete(null);
                 } catch (Exception ex) {
                     this.plugin.getLogger().log(Level.SEVERE, "Failed to create game #" + game.id(), ex);

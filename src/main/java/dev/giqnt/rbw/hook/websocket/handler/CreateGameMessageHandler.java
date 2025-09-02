@@ -18,7 +18,7 @@ public class CreateGameMessageHandler extends MessageHandler {
         final var data = context.data();
         final var plugin = context.plugin();
         try {
-            final int id = data.get("id").getAsInt();
+            final String id = data.get("id").getAsString();
             final String mapName = data.get("mapId").getAsString();
             final var typeToken = new TypeToken<ArrayList<ArrayList<String>>>() {};
             final List<List<String>> teamsInfo = plugin.getGson().fromJson(
@@ -65,7 +65,7 @@ public class CreateGameMessageHandler extends MessageHandler {
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error processing create_game request", e);
             try {
-                final int id = data.get("id").getAsInt();
+                final String id = data.get("id").getAsString();
                 sendGameCreateFailure(context, id, "Internal server error");
             } catch (Exception ignored) {
                 // If we can't even get the game ID, just log the error
@@ -77,7 +77,7 @@ public class CreateGameMessageHandler extends MessageHandler {
     /**
      * Sends game creation failure with an error message.
      */
-    private void sendGameCreateFailure(final MessageHandlerContext context, final int id, final String message) {
+    private void sendGameCreateFailure(final MessageHandlerContext context, final String id, final String message) {
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("id", id);
         responseData.addProperty("message", message);
@@ -87,7 +87,7 @@ public class CreateGameMessageHandler extends MessageHandler {
     /**
      * Sends game creation failure with a list of offline players.
      */
-    private void sendGameCreateFailure(final MessageHandlerContext context, final int id, final List<String> offlinePlayers) {
+    private void sendGameCreateFailure(final MessageHandlerContext context, final String id, final List<String> offlinePlayers) {
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("id", id);
         responseData.addProperty("message", "Some players are offline or not ready");
@@ -102,10 +102,10 @@ public class CreateGameMessageHandler extends MessageHandler {
     /**
      * Sends game creation success response.
      */
-    private void sendGameCreateSuccess(final MessageHandlerContext context, final int id) {
+    private void sendGameCreateSuccess(final MessageHandlerContext context, final String id) {
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("id", id);
-        responseData.addProperty("serverGameId", String.valueOf(id));
+        responseData.addProperty("serverGameId", id);
         context.messageSender().accept("game_create_success", responseData);
     }
 }

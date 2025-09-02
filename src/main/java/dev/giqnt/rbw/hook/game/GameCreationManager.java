@@ -34,7 +34,7 @@ public class GameCreationManager {
      * @param teams   List of teams containing players
      * @return A CompletableFuture that completes when the game is created
      */
-    public CompletableFuture<Void> queue(final int id, final String mapName, final List<List<Player>> teams) {
+    public CompletableFuture<Void> queue(final String id, final String mapName, final List<List<Player>> teams) {
         CompletableFuture<Void> promise = new CompletableFuture<>();
 
         // Create a set of all players from all teams

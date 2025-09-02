@@ -60,7 +60,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
 
     @Override
     public void createGame(@NonNull final RankedGame game) throws GameCreateException {
-        if (arenaToGame.values().stream().anyMatch(g -> g.id() == game.id())) {
+        if (arenaToGame.values().stream().anyMatch(g -> g.id().equals(game.id()))) {
             throw new GameCreateException("Game already created");
         }
         final List<List<Player>> teams = game.teams();
@@ -70,12 +70,12 @@ public class BedWars1058Adapter implements Adapter, Listener {
 
         final var availableArenas = Arena.getArenas().stream()
                 .filter(a -> a.getGroup().startsWith(plugin.getConfigHolder().groupPrefix())
-                             && a.getDisplayName().equals(mapName)
-                             && a.getStatus() == GameState.waiting
-                             && a.getPlayers().isEmpty()
-                             && a.getMaxPlayers() >= teamCount * teamSize
-                             && a.getTeams().size() >= teamCount
-                             && a.getMaxInTeam() >= teamSize)
+                        && a.getDisplayName().equals(mapName)
+                        && a.getStatus() == GameState.waiting
+                        && a.getPlayers().isEmpty()
+                        && a.getMaxPlayers() >= teamCount * teamSize
+                        && a.getTeams().size() >= teamCount
+                        && a.getMaxInTeam() >= teamSize)
                 .toList();
         if (availableArenas.isEmpty()) {
             throw new GameCreateException("No available arenas found for map " + mapName);

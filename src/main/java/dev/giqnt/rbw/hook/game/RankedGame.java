@@ -12,6 +12,6 @@ public record RankedGame(
         @Nullable List<String> mapNames,
         Set<Player> players,
         List<List<Player>> teams,
-        CompletableFuture<Void> promise
+        CompletableFuture<String> promise
 ) {
 }

@@ -33,10 +33,10 @@ public class GameCreationManager {
      * @param id       The unique game identifier
      * @param mapNames The maps on which the game will be played
      * @param teams    List of teams containing players
-     * @return A CompletableFuture that completes when the game is created
+     * @return A CompletableFuture that completes with the name of the map when the game is created
      */
-    public CompletableFuture<Void> queue(final String id, @Nullable final List<String> mapNames, final List<List<Player>> teams) {
-        final CompletableFuture<Void> promise = new CompletableFuture<>();
+    public CompletableFuture<String> queue(final String id, @Nullable final List<String> mapNames, final List<List<Player>> teams) {
+        final CompletableFuture<String> promise = new CompletableFuture<>();
 
         // Create a set of all players from all teams
         final Set<Player> allPlayers = teams.stream()
@@ -72,7 +72,7 @@ public class GameCreationManager {
                     this.plugin.getLogger().info("Processing game #" + game.id());
                     final String mapName = this.plugin.getBedWars().createGame(game);
                     this.plugin.getLogger().info("Successfully created game #" + game.id() + " on map " + mapName);
-                    game.promise().complete(null);
+                    game.promise().complete(mapName);
                 } catch (Exception ex) {
                     this.plugin.getLogger().log(Level.SEVERE, "Failed to create game #" + game.id(), ex);
                     game.promise().completeExceptionally(ex);

@@ -51,7 +51,7 @@ public class CreateGameMessageHandler extends MessageHandler {
             // Create the game
             plugin.getGameCreationManager()
                     .queue(id, mapNames, teamPlayers)
-                    .handle((result, ex) -> {
+                    .handle((mapName, ex) -> {
                         if (ex != null) {
                             plugin.getLogger().log(Level.SEVERE, "Failed to create game " + id, ex);
                             if (ex instanceof GameCreateException) {
@@ -61,7 +61,7 @@ public class CreateGameMessageHandler extends MessageHandler {
                             }
                         } else {
                             plugin.getLogger().info("Successfully created game " + id);
-                            sendGameCreateSuccess(context, id);
+                            sendGameCreateSuccess(context, id, mapName);
                         }
                         return null;
                     });
@@ -121,10 +121,11 @@ public class CreateGameMessageHandler extends MessageHandler {
     /**
      * Sends game creation success response.
      */
-    private void sendGameCreateSuccess(final MessageHandlerContext context, final String id) {
+    private void sendGameCreateSuccess(final MessageHandlerContext context, final String id, final String mapName) {
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("id", id);
         responseData.addProperty("serverGameId", id);
+        responseData.addProperty("mapName", mapName);
         context.messageSender().accept("game_create_success", responseData);
     }
 }

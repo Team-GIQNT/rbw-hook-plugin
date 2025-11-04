@@ -1,11 +1,10 @@
 plugins {
-    id("java-library")
-    id("com.gradleup.shadow") version "9.0.0-beta13"
-    id("io.freefair.lombok") version "8.13.1"
+    `java-library`
+    id("com.gradleup.shadow") version "9.2.2"
+    id("io.freefair.lombok") version "9.0.0"
 }
 
 group = "dev.giqnt.rbw.hook"
-version = "1.0"
 
 repositories {
     mavenCentral()
@@ -34,25 +33,14 @@ java {
 }
 
 tasks {
-    compileJava {
-        options.release = 17
-    }
-
-    build {
-        finalizedBy(shadowJar)
+    jar {
+        archiveClassifier.set("not-shaded")
     }
 
     shadowJar {
-        enableRelocation = true
-        relocationPrefix = "${project.group}.libs"
+        archiveClassifier.set(null)
+        enableAutoRelocation.set(true)
+        relocationPrefix.set("${project.group}.libs")
         minimize()
-
-        doLast {
-            copy {
-                from(shadowJar.get().archiveFile)
-                into(layout.buildDirectory.dir("result").get())
-                rename { "${rootProject.name}.jar" }
-            }
-        }
     }
 }

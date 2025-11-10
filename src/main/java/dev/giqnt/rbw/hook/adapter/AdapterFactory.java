@@ -7,7 +7,8 @@ public class AdapterFactory {
         if (isClassLoaded("com.andrei1058.bedwars.BedWars")) {
             return new BedWars1058Adapter(plugin);
         } else {
-            throw new IllegalStateException("No BedWars plugin detected");
+            plugin.getLogger().severe("No BedWars plugin detected, using empty adapter");
+            return new EmptyAdapter();
         }
     }
 

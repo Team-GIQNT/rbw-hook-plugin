@@ -1,4 +1,4 @@
-package dev.giqnt.rbw.hook.websocket.handler;
+package dev.giqnt.rbw.hook.websocket;
 
 import org.jspecify.annotations.NonNull;
 

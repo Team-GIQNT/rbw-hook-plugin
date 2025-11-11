@@ -1,11 +1,17 @@
 package dev.giqnt.rbw.hook.websocket;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.giqnt.rbw.hook.HookPlugin;
-import dev.giqnt.rbw.hook.websocket.handler.*;
+import dev.giqnt.rbw.hook.websocket.handlers.GameCreateRequestHandler;
+import dev.giqnt.rbw.hook.websocket.handlers.PlayerMessageSendRequestHandler;
+import dev.giqnt.rbw.hook.websocket.handlers.PlayerStateGetRequestHandler;
 import okhttp3.*;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -13,31 +19,33 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 
-public class WebSocketManager {
+public class WebSocketManager implements Listener {
+    private static final Duration RECONNECT_DELAY = Duration.ofSeconds(5);
     private final HookPlugin plugin;
     private final URI uri;
     private final OkHttpClient client;
-    private final ScheduledExecutorService scheduler; // reconnection
-    private final ExecutorService senderExecutor;
-    private final BlockingQueue<String> messageQueue;
+    private final ScheduledExecutorService reconnectScheduler = Executors.newSingleThreadScheduledExecutor();
+    private final ExecutorService senderExecutor = Executors.newSingleThreadExecutor();
+    private final BlockingQueue<String> messageQueue = new LinkedBlockingQueue<>();
     private final AtomicBoolean manuallyClosed = new AtomicBoolean(false);
-    private final Duration reconnectDelay = Duration.ofSeconds(5);
     private final Map<String, MessageHandler> handlerMap = Map.of(
-            "request_player_status", new RequestPlayerStatusMessageHandler(),
-            "send_link_code", new SendLinkCodeMessageHandler(),
-            "create_game", new CreateGameMessageHandler()
+            "player.state.get", new PlayerStateGetRequestHandler(),
+            "player.message.send", new PlayerMessageSendRequestHandler(),
+            "game.create", new GameCreateRequestHandler()
     );
     private volatile WebSocket webSocket;
 
     public WebSocketManager(final HookPlugin plugin) {
         this.plugin = plugin;
         this.uri = URI.create(
-                String.format("wss://rbw.giqnt.dev/project/%s/ws", plugin.getConfigHolder().rbwName())
+                String.format("wss://rbw.giqnt.dev/api/v1/projects/%s/ws", plugin.getConfigHolder().rbwName())
         );
         final OkHttpClient.Builder builder = new OkHttpClient.Builder().pingInterval(Duration.ofSeconds(30));
         if (plugin.getConfig().getBoolean("proxy.enabled", false)) {
@@ -57,10 +65,8 @@ public class WebSocketManager {
                     });
         }
         this.client = builder.build();
-        this.scheduler = Executors.newSingleThreadScheduledExecutor();
-        this.senderExecutor = Executors.newSingleThreadExecutor();
-        this.messageQueue = new LinkedBlockingQueue<>();
         startMessageDispatcher();
+        plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
 
     public void connect() {
@@ -82,12 +88,29 @@ public class WebSocketManager {
             plugin.getLogger().log(Level.INFO, "[ws] Manual close, skipping reconnect");
             return;
         }
-        plugin.getLogger().log(Level.INFO, String.format("[ws] Reconnecting in %d ms...", reconnectDelay.toMillis()));
-        scheduler.schedule(this::doConnect, reconnectDelay.toMillis(), TimeUnit.MILLISECONDS);
+        plugin.getLogger().log(Level.INFO, String.format("[ws] Reconnecting in %d ms...", RECONNECT_DELAY.toMillis()));
+        reconnectScheduler.schedule(this::doConnect, RECONNECT_DELAY.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    public void sendText(String message) {
-        messageQueue.offer(message);
+    public void send(final MessageType type, final String action, final JsonObject data) {
+        final JsonObject json = new JsonObject();
+        json.addProperty("type", type.getValue());
+        json.addProperty("action", action);
+        json.add("data", data);
+        sendText(json.toString());
+    }
+
+    public void send(final MessageType type, final String action, final String id, final JsonObject data) {
+        final JsonObject json = new JsonObject();
+        json.addProperty("type", type.getValue());
+        json.addProperty("action", action);
+        json.addProperty("id", id);
+        json.add("data", data);
+        sendText(json.toString());
+    }
+
+    private void sendText(String message) {
+        messageQueue.add(message);
     }
 
     private void startMessageDispatcher() {
@@ -117,38 +140,54 @@ public class WebSocketManager {
     }
 
     public void close() {
+        try {
+            senderExecutor.shutdownNow();
+            if (!senderExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                plugin.getLogger().log(Level.SEVERE, "[ws] Timed out while finish sending messages in queue");
+            }
+        } catch (InterruptedException e) {
+            plugin.getLogger().log(Level.SEVERE, "[ws] Interrupted while finish sending messages in queue", e);
+        }
         manuallyClosed.set(true);
         final WebSocket ws = this.webSocket;
         if (ws != null) {
             ws.close(1000, "Normal closure");
         }
-        scheduler.shutdown();
-        senderExecutor.shutdownNow();
-        client.dispatcher().executorService().shutdown();
+        reconnectScheduler.shutdown();
     }
 
     private CompletionStage<Void> handleMessage(final String message) {
         return CompletableFuture.runAsync(() -> {
-            JsonObject json = JsonParser.parseString(message).getAsJsonObject();
-            String type = json.get("type").getAsString();
-            JsonObject data = json.get("data").getAsJsonObject();
-            MessageHandler handler = handlerMap.get(type);
+            final JsonObject json = JsonParser.parseString(message).getAsJsonObject();
+            final MessageType type = MessageType.byValue(json.get("type").getAsString());
+            final String action = json.get("action").getAsString();
+            final var idOpt = Optional.ofNullable(json.get("id")).map(JsonElement::getAsString);
+            final JsonObject data = json.get("data").getAsJsonObject();
+            final MessageHandler handler = handlerMap.get(action);
             if (handler == null) {
-                plugin.getLogger().log(Level.WARNING, String.format("[ws] No handler for type '%s'", type));
+                plugin.getLogger().log(Level.WARNING, String.format("[ws] No handler for action '%s'", action));
                 return;
             }
             handler.execute(new MessageHandlerContext(
                     plugin,
                     plugin.getLogger(),
                     data,
-                    (msgType, msgData) -> {
-                        JsonObject out = new JsonObject();
-                        out.addProperty("type", msgType);
-                        out.add("data", msgData);
-                        sendText(out.toString());
+                    type == MessageType.REQUEST && idOpt.isPresent() ? (msgData) -> {
+                        send(MessageType.RESPONSE, action, idOpt.get(), msgData);
+                    } : (msgData) -> {
+                        throw new UnsupportedOperationException("Reply can only be sent to 'request' type message");
                     }
             ));
         });
+    }
+
+    @EventHandler
+    public void onPlayerJoin(final PlayerJoinEvent e) {
+        final JsonObject data = new JsonObject();
+        data.addProperty("uuid", e.getPlayer().getUniqueId().toString());
+        data.addProperty("name", e.getPlayer().getName());
+        data.addProperty("timestamp", Instant.now().toEpochMilli());
+        send(MessageType.EVENT, "playerJoin", data);
     }
 
     private class InternalWebSocketListener extends WebSocketListener {

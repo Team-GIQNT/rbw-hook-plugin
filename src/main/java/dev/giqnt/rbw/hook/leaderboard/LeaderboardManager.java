@@ -27,7 +27,7 @@ public class LeaderboardManager {
     private void fetchAll() {
         try {
             for (final LeaderboardCategory category : LeaderboardCategory.values()) {
-                final String response = plugin.getApi().request(String.format("/leaderboard?limit=10&sortBy=%s", category.name().toLowerCase()), "GET", null);
+                final String response = plugin.getApi().requestLegacy(String.format("/leaderboard?limit=10&sortBy=%s", category.name().toLowerCase()), "GET", null);
                 final JsonObject body = JsonParser.parseString(response).getAsJsonObject();
                 if (!body.get("success").getAsBoolean()) {
                     throw new RuntimeException(String.format("Failed to fetch leaderboard data for category %s: %s", category, body.get("message").getAsString()));

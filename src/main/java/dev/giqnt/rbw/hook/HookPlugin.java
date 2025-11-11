@@ -33,6 +33,7 @@ public class HookPlugin extends JavaPlugin {
     private Adapter bedWars;
     @Getter
     private GameCreationManager gameCreationManager;
+    private RBWPlaceholderExpansion placeholderExpansion;
 
     @Override
     public void onEnable() {
@@ -49,7 +50,8 @@ public class HookPlugin extends JavaPlugin {
         this.leaderboardManager.init();
         this.playerProfileManager.init();
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
-            new RBWPlaceholderExpansion(this).register();
+            this.placeholderExpansion = new RBWPlaceholderExpansion(this);
+            this.placeholderExpansion.register();
         }
         if (this.bedWars instanceof Listener adapter) {
             Bukkit.getPluginManager().registerEvents(adapter, this);
@@ -59,6 +61,9 @@ public class HookPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (this.placeholderExpansion != null) {
+            this.placeholderExpansion.unregister();
+        }
         if (this.webSocketManager != null) {
             this.webSocketManager.close();
             this.webSocketManager = null;
@@ -73,7 +78,7 @@ public class HookPlugin extends JavaPlugin {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             final var maps = this.bedWars.getMaps();
             try {
-                this.api.request("/maps", "PUT", gson.toJson(maps));
+                this.api.requestLegacy("/maps", "PUT", gson.toJson(maps));
             } catch (IOException e) {
                 getLogger().log(Level.SEVERE, "Failed to update maps data", e);
             }

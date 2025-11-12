@@ -9,3 +9,9 @@ proxy:
   password: ""
   ip: "127.0.0.1"
   port: 8585
+
+rank-color:
+  0: '8'
+  100: '7'
+  200: '6'
+  300: 'b'

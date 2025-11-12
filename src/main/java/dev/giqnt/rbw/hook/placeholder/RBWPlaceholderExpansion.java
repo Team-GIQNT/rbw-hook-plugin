@@ -9,6 +9,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import java.util.Objects;
+import java.util.Optional;
 
 @RequiredArgsConstructor
 public class RBWPlaceholderExpansion extends PlaceholderExpansion {
@@ -64,6 +65,23 @@ public class RBWPlaceholderExpansion extends PlaceholderExpansion {
                             .map(profile -> profile.stats().get(type))
                             .map(String::valueOf)
                             .orElse("???");
+                }
+                case "rank": {
+                    if (player == null) return null;
+                    if (parts.length != 2) return null;
+                    if (parts[1].equals("color")) {
+                        return plugin.getPlayerProfileManager().getProfile(player)
+                                .map(profile -> profile.stats().get("elo"))
+                                .map(elo -> {
+                                    final var rankColors = plugin.getConfigHolder().rankColors();
+                                    if (rankColors.isEmpty()) return null;
+                                    return Optional.ofNullable(rankColors.floorEntry(elo))
+                                            .orElseGet(rankColors::firstEntry);
+                                })
+                                .map(entry -> "&" + entry.getValue())
+                                .orElse("");
+                    }
+                    return null;
                 }
             }
         } catch (final IllegalArgumentException ignored) {

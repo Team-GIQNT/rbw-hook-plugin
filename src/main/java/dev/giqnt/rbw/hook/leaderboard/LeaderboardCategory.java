@@ -7,5 +7,7 @@ public enum LeaderboardCategory {
     LOSSES,
     WLR,
     STREAK,
-    MVPS
+    MVPS,
+    KILLS,
+    BEDS
 }

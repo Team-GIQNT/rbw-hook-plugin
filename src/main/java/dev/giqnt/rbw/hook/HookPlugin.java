@@ -11,15 +11,18 @@ import dev.giqnt.rbw.hook.utils.APIUtils;
 import dev.giqnt.rbw.hook.websocket.WebSocketManager;
 import lombok.Getter;
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.logging.Level;
 
 public class HookPlugin extends JavaPlugin {
     @Getter
     private final Gson gson = new Gson();
+    private File configFile;
     @Getter
     private ConfigHolder configHolder;
     private WebSocketManager webSocketManager;
@@ -37,8 +40,8 @@ public class HookPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        saveDefaultConfig();
-        this.configHolder = ConfigHolder.load(getConfig());
+        this.configFile = new File(getDataFolder(), "config.yml");
+        reloadConfig();
         this.api = new APIUtils(this.configHolder.rbwName(), this.configHolder.token());
         this.leaderboardManager = new LeaderboardManager(this);
         this.playerProfileManager = new PlayerProfileManager(this);
@@ -71,6 +74,22 @@ public class HookPlugin extends JavaPlugin {
         if (this.gameCreationManager != null) {
             this.gameCreationManager.shutdown();
             this.gameCreationManager = null;
+        }
+    }
+
+    @Override
+    public void reloadConfig() {
+        configHolder = ConfigHolder.load(YamlConfiguration.loadConfiguration(configFile));
+        saveConfig();
+    }
+
+    @Override
+    public void saveConfig() {
+        if (configHolder == null) return;
+        try {
+            configHolder.toYaml().save(configFile);
+        } catch (final IOException ex) {
+            getLogger().log(Level.SEVERE, "Could not save config to " + configFile, ex);
         }
     }
 

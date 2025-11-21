@@ -8,7 +8,6 @@ import dev.giqnt.rbw.hook.websocket.handlers.GameCreateRequestHandler;
 import dev.giqnt.rbw.hook.websocket.handlers.PlayerMessageSendRequestHandler;
 import dev.giqnt.rbw.hook.websocket.handlers.PlayerStateGetRequestHandler;
 import okhttp3.*;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -48,12 +47,12 @@ public class WebSocketManager implements Listener {
                 String.format("wss://rbw.giqnt.dev/api/v1/projects/%s/ws", plugin.getConfigHolder().rbwName())
         );
         final OkHttpClient.Builder builder = new OkHttpClient.Builder().pingInterval(Duration.ofSeconds(30));
-        if (plugin.getConfig().getBoolean("proxy.enabled", false)) {
-            final FileConfiguration config = plugin.getConfig();
-            final String ip = config.getString("proxy.ip", "127.0.0.1");
-            final int port = config.getInt("proxy.port", 8585);
-            final String username = config.getString("proxy.username", "");
-            final String password = config.getString("proxy.password", "");
+        final var proxyConfig = plugin.getConfigHolder().proxy();
+        if (proxyConfig.enabled()) {
+            final String ip = proxyConfig.ip();
+            final int port = proxyConfig.port();
+            final String username = proxyConfig.username();
+            final String password = proxyConfig.password();
             builder.proxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(ip, port)))
                     .proxyAuthenticator((route, response) -> {
                         String credential = Credentials.basic(username, password);

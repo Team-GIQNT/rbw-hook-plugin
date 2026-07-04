@@ -14,6 +14,7 @@ import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.game.GameCreateException;
 import dev.giqnt.rbw.hook.game.RankedGame;
+import lombok.RequiredArgsConstructor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -25,15 +26,11 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.logging.Level;
 
+@RequiredArgsConstructor
 public class BedWars1058Adapter implements Adapter, Listener {
-
     private final HookPlugin plugin;
     private final ConcurrentMap<String, RankedGame> arenaToGame = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, CompletableFuture<Void>> arenaStartFutures = new ConcurrentHashMap<>();
-
-    public BedWars1058Adapter(@NonNull final HookPlugin plugin) {
-        this.plugin = plugin;
-    }
 
     @Override
     public Collection<MapInfo> getMaps() {

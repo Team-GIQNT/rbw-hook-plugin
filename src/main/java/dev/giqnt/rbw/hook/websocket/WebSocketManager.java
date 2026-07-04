@@ -7,15 +7,16 @@ import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.websocket.handlers.GameCreateRequestHandler;
 import dev.giqnt.rbw.hook.websocket.handlers.PlayerMessageSendRequestHandler;
 import dev.giqnt.rbw.hook.websocket.handlers.PlayerStateGetRequestHandler;
-import okhttp3.*;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
-import java.net.InetSocketAddress;
-import java.net.Proxy;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,7 +30,6 @@ public class WebSocketManager implements Listener {
     private static final Duration RECONNECT_DELAY = Duration.ofSeconds(5);
     private final HookPlugin plugin;
     private final URI uri;
-    private final OkHttpClient client;
     private final ScheduledExecutorService reconnectScheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService senderExecutor = Executors.newSingleThreadExecutor();
     private final BlockingQueue<String> messageQueue = new LinkedBlockingQueue<>();
@@ -46,24 +46,6 @@ public class WebSocketManager implements Listener {
         this.uri = URI.create(
                 String.format("wss://rbw.giqnt.dev/api/v1/projects/%s/ws", plugin.getConfigHolder().rbwName())
         );
-        final OkHttpClient.Builder builder = new OkHttpClient.Builder().pingInterval(Duration.ofSeconds(30));
-        final var proxyConfig = plugin.getConfigHolder().proxy();
-        if (proxyConfig.enabled()) {
-            final String ip = proxyConfig.ip();
-            final int port = proxyConfig.port();
-            final String username = proxyConfig.username();
-            final String password = proxyConfig.password();
-            builder.proxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(ip, port)))
-                    .proxyAuthenticator((route, response) -> {
-                        String credential = Credentials.basic(username, password);
-                        return response
-                                .request()
-                                .newBuilder()
-                                .header("Proxy-Authorization", credential)
-                                .build();
-                    });
-        }
-        this.client = builder.build();
         startMessageDispatcher();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }
@@ -78,7 +60,7 @@ public class WebSocketManager implements Listener {
                 .url(uri.toString())
                 .addHeader("Authorization", "Bearer " + plugin.getConfigHolder().token())
                 .build();
-        this.webSocket = client.newWebSocket(request, new InternalWebSocketListener());
+        this.webSocket = plugin.getApi().newWebSocket(request, new InternalWebSocketListener());
         plugin.getLogger().log(Level.INFO, "[ws] Connecting...");
     }
 

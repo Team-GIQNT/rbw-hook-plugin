@@ -1,18 +1,47 @@
 package dev.giqnt.rbw.hook.utils;
 
-import lombok.RequiredArgsConstructor;
+import dev.giqnt.rbw.hook.ConfigHolder;
 import okhttp3.*;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.time.Duration;
 
-@RequiredArgsConstructor
 public class APIUtils {
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
     private final String projectName;
     private final String token;
-    private final OkHttpClient client = new OkHttpClient();
+    private final OkHttpClient client;
+
+    public APIUtils(final String projectName, final String token, final ConfigHolder.ProxyConfigHolder proxyConfig) {
+        this.projectName = projectName;
+        this.token = token;
+        final OkHttpClient.Builder builder = new OkHttpClient.Builder().pingInterval(Duration.ofSeconds(30));
+        if (proxyConfig.enabled()) {
+            final String ip = proxyConfig.ip();
+            final int port = proxyConfig.port();
+            final String username = proxyConfig.username();
+            final String password = proxyConfig.password();
+            builder.proxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(ip, port)))
+                    .proxyAuthenticator((route, response) -> {
+                        String credential = Credentials.basic(username, password);
+                        return response
+                                .request()
+                                .newBuilder()
+                                .header("Proxy-Authorization", credential)
+                                .build();
+                    });
+        }
+        this.client = builder.build();
+    }
+
+    @NonNull
+    public WebSocket newWebSocket(@NonNull final Request request, @NonNull final WebSocketListener listener) {
+        return client.newWebSocket(request, listener);
+    }
 
     @NonNull
     public String request(

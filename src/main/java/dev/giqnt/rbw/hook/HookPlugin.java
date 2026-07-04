@@ -42,7 +42,7 @@ public class HookPlugin extends JavaPlugin {
     public void onEnable() {
         this.configFile = new File(getDataFolder(), "config.yml");
         reloadConfig();
-        this.api = new APIUtils(this.configHolder.rbwName(), this.configHolder.token());
+        this.api = new APIUtils(this.configHolder.rbwName(), this.configHolder.token(), this.configHolder.proxy());
         this.leaderboardManager = new LeaderboardManager(this);
         this.playerProfileManager = new PlayerProfileManager(this);
         this.bedWars = AdapterFactory.getAdapter(this);

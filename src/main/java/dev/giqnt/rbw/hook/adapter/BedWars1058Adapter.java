@@ -115,7 +115,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
             future.join();
         } catch (CompletionException ex) {
             if (ex.getCause() instanceof GameCreateException exception) {
-                throw exception;
+                throw new GameCreateException(exception.getMessage(), selectedArena.getDisplayName());
             }
             throw new RuntimeException("Failed to create game", ex);
         }

@@ -47,8 +47,8 @@ public class GameCreateRequestHandler extends MessageHandler {
                     .handle((mapName, ex) -> {
                         if (ex != null) {
                             plugin.getLogger().log(Level.SEVERE, "Failed to create game " + data.id(), ex);
-                            if (ex instanceof GameCreateException) {
-                                sendGameCreateFailure(context, ex.getMessage());
+                            if (ex instanceof GameCreateException gameCreateException) {
+                                sendGameCreateFailure(context, gameCreateException.getMessage(), gameCreateException.getMapName());
                             } else {
                                 sendGameCreateFailure(context, "Internal server error");
                             }
@@ -77,9 +77,17 @@ public class GameCreateRequestHandler extends MessageHandler {
      * Sends game creation failure with an error message.
      */
     private void sendGameCreateFailure(final MessageHandlerContext context, final String message) {
+        sendGameCreateFailure(context, message, null);
+    }
+
+    /**
+     * Sends game creation failure with an error message and the map the arena was picked on, if any.
+     */
+    private void sendGameCreateFailure(final MessageHandlerContext context, final String message, @Nullable final String mapName) {
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("success", false);
         responseData.addProperty("message", message);
+        if (mapName != null) responseData.addProperty("mapName", mapName);
         context.messageReplier().accept(responseData);
     }
 

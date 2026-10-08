@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 public class GameCreationManager {
     private final HookPlugin plugin;
     private final ConcurrentLinkedQueue<RankedGame> gameQueue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentMap<String, CompletableFuture<String>> promises = new ConcurrentHashMap<>();
     private final AtomicBoolean processing = new AtomicBoolean(false);
     private final ScheduledExecutorService executorService;
 
@@ -37,6 +38,13 @@ public class GameCreationManager {
      */
     public CompletableFuture<String> queue(final String id, @Nullable final List<String> mapNames, final List<List<Player>> teams) {
         final CompletableFuture<String> promise = new CompletableFuture<>();
+        final CompletableFuture<String> existing = promises.putIfAbsent(id, promise);
+        if (existing != null) {
+            return existing;
+        }
+        promise.whenComplete((mapName, ex) -> {
+            if (ex != null) promises.remove(id, promise);
+        });
 
         // Create a set of all players from all teams
         final Set<Player> allPlayers = teams.stream()
@@ -50,6 +58,17 @@ public class GameCreationManager {
         triggerQueueProcessing();
 
         return promise;
+    }
+
+    /**
+     * @return The promise of a game with this id that is being created or is running, so a repeated create gets the same result
+     */
+    public @Nullable CompletableFuture<String> find(final String id) {
+        return promises.get(id);
+    }
+
+    public void forget(final String id) {
+        promises.remove(id);
     }
 
     /**

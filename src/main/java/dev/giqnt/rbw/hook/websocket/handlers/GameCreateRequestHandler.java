@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 
 public class GameCreateRequestHandler extends MessageHandler {
@@ -21,6 +22,12 @@ public class GameCreateRequestHandler extends MessageHandler {
         final var plugin = context.plugin();
         try {
             final var data = plugin.getGson().fromJson(context.data(), GameCreateRequestData.class);
+            final var existing = plugin.getGameCreationManager().find(data.id());
+            if (existing != null) {
+                plugin.getLogger().info("Game " + data.id() + " already requested, replying with its result");
+                replyWhenCreated(context, data.id(), existing);
+                return;
+            }
 
             // Check for offline or unready players
             final List<GameCreateRequestTeamMemberData> missingPlayers = new ArrayList<>();
@@ -42,26 +49,29 @@ public class GameCreateRequestHandler extends MessageHandler {
             }
 
             // Create the game
-            plugin.getGameCreationManager()
-                    .queue(data.id(), data.mapNames(), teamPlayers)
-                    .handle((mapName, ex) -> {
-                        if (ex != null) {
-                            plugin.getLogger().log(Level.SEVERE, "Failed to create game " + data.id(), ex);
-                            if (ex instanceof GameCreateException gameCreateException) {
-                                sendGameCreateFailure(context, gameCreateException.getMessage(), gameCreateException.getMapName());
-                            } else {
-                                sendGameCreateFailure(context, "Internal server error");
-                            }
-                        } else {
-                            plugin.getLogger().info("Successfully created game " + data.id());
-                            sendGameCreateSuccess(context, mapName);
-                        }
-                        return null;
-                    });
+            replyWhenCreated(context, data.id(), plugin.getGameCreationManager().queue(data.id(), data.mapNames(), teamPlayers));
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error processing create_game request", e);
             sendGameCreateFailure(context, "Internal server error");
         }
+    }
+
+    private void replyWhenCreated(final MessageHandlerContext context, final String id, final CompletableFuture<String> promise) {
+        final var plugin = context.plugin();
+        promise.handle((mapName, ex) -> {
+            if (ex != null) {
+                plugin.getLogger().log(Level.SEVERE, "Failed to create game " + id, ex);
+                if (ex instanceof GameCreateException gameCreateException) {
+                    sendGameCreateFailure(context, gameCreateException.getMessage(), gameCreateException.getMapName());
+                } else {
+                    sendGameCreateFailure(context, "Internal server error");
+                }
+            } else {
+                plugin.getLogger().info("Successfully created game " + id);
+                sendGameCreateSuccess(context, mapName);
+            }
+            return null;
+        });
     }
 
     private @Nullable List<String> resolveMapNames(final JsonElement element) {

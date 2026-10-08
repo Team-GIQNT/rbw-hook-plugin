@@ -96,6 +96,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
             }).get();
         } catch (InterruptedException | ExecutionException ex) {
             plugin.getLogger().log(Level.SEVERE, "Failed to add players to arena", ex);
+            Bukkit.getScheduler().runTask(plugin, () -> cancelArenaStart(selectedArena));
             throw new GameCreateException("Failed to add players to arena", ex);
         }
         selectedArena.setTeamAssigner(arena -> {
@@ -169,6 +170,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
         if (rankedGame == null) {
             return;
         }
+        plugin.getGameCreationManager().forget(rankedGame.id());
         JsonArray teamsData = new JsonArray();
         final UUID winningTeamId = event.getTeamWinner().getIdentity();
         arena.getTeams().forEach(team -> {

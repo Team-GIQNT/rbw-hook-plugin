@@ -1,6 +1,7 @@
 package dev.giqnt.rbw.hook.profile;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -16,6 +17,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -44,7 +46,7 @@ public class PlayerProfileManager implements Listener {
     @Nullable
     private PlayerProfile fetchProfile(final UUID uuid) {
         try {
-            final var result = plugin.getApi().request(1, "/users/?uuid=" + uuid, "GET", null, response -> {
+            final var result = plugin.getApi().request("/users?uuid=" + uuid, "GET", null, response -> {
                 if (response.code() == 404) {
                     return null;
                 }
@@ -57,7 +59,7 @@ public class PlayerProfileManager implements Listener {
             if (result == null) {
                 return null;
             }
-            final JsonArray data = JsonParser.parseString(result).getAsJsonArray();
+            final JsonArray data = items(result);
             if (data.isEmpty()) return null;
             return parseJson(data.get(0).getAsJsonObject());
         } catch (IOException e) {
@@ -72,15 +74,18 @@ public class PlayerProfileManager implements Listener {
             return;
         }
         try {
-            final String queryString = players.stream()
-                    .map(player -> "uuid=" + player.getUniqueId())
-                    .collect(Collectors.joining("&"));
-            final var result = plugin.getApi().request(1, "/users/?" + queryString, "GET", null);
-            final JsonArray playersData = JsonParser.parseString(result).getAsJsonArray();
-            final Map<UUID, PlayerProfile> playerProfileMap = playersData.asList().stream().collect(Collectors.toUnmodifiableMap(
-                    data -> UUID.fromString(data.getAsJsonObject().get("uuid").getAsString()),
-                    data -> parseJson(data.getAsJsonObject())
-            ));
+            final Map<UUID, PlayerProfile> playerProfileMap = new HashMap<>();
+            // the api takes at most 100 uuids per request
+            for (final List<Player> chunk : Lists.partition(players, 100)) {
+                final String queryString = chunk.stream()
+                        .map(player -> "uuid=" + player.getUniqueId())
+                        .collect(Collectors.joining("&"));
+                final var result = plugin.getApi().request("/users?limit=100&" + queryString, "GET", null);
+                for (final var data : items(result)) {
+                    final JsonObject user = data.getAsJsonObject();
+                    playerProfileMap.put(UUID.fromString(user.get("uuid").getAsString()), parseJson(user));
+                }
+            }
             for (final Player player : players) {
                 final UUID uuid = player.getUniqueId();
                 final PlayerProfile profile = playerProfileMap.get(uuid);
@@ -93,6 +98,10 @@ public class PlayerProfileManager implements Listener {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static JsonArray items(final String body) {
+        return JsonParser.parseString(body).getAsJsonObject().getAsJsonArray("items");
     }
 
     private PlayerProfile parseJson(final JsonObject data) {

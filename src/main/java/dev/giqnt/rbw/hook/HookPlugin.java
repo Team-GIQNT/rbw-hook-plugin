@@ -42,7 +42,12 @@ public class HookPlugin extends JavaPlugin {
     public void onEnable() {
         this.configFile = new File(getDataFolder(), "config.yml");
         reloadConfig();
-        this.api = new APIUtils(this.configHolder.rbwName(), this.configHolder.token(), this.configHolder.proxy());
+        if (this.configHolder.apiUrl().isEmpty() || this.configHolder.token().isEmpty()) {
+            getLogger().severe("Set api-url and token (issued on the RBW dashboard) in config.yml, then restart.");
+            Bukkit.getPluginManager().disablePlugin(this);
+            return;
+        }
+        this.api = new APIUtils(this.configHolder.apiUrl(), this.configHolder.token(), this.configHolder.proxy());
         this.leaderboardManager = new LeaderboardManager(this);
         this.playerProfileManager = new PlayerProfileManager(this);
         this.bedWars = AdapterFactory.getAdapter(this);
@@ -97,7 +102,7 @@ public class HookPlugin extends JavaPlugin {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
             final var maps = this.bedWars.getMaps();
             try {
-                this.api.requestLegacy("/maps", "PUT", gson.toJson(maps));
+                this.api.request("/maps", "PUT", gson.toJson(maps));
             } catch (IOException e) {
                 getLogger().log(Level.SEVERE, "Failed to update maps data", e);
             }

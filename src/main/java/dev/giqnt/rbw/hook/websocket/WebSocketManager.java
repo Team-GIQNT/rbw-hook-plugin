@@ -43,9 +43,7 @@ public class WebSocketManager implements Listener {
 
     public WebSocketManager(final HookPlugin plugin) {
         this.plugin = plugin;
-        this.uri = URI.create(
-                String.format("wss://rbw.giqnt.dev/api/v1/projects/%s/ws", plugin.getConfigHolder().rbwName())
-        );
+        this.uri = URI.create(plugin.getApi().webSocketUrl("/ws/gameserver"));
         startMessageDispatcher();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
     }

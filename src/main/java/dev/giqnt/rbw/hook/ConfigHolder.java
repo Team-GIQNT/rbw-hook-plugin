@@ -8,7 +8,7 @@ import org.jspecify.annotations.NonNull;
 import java.util.TreeMap;
 
 public record ConfigHolder(
-        @NonNull String rbwName,
+        @NonNull String apiUrl,
         @NonNull String token,
         @NonNull String groupPrefix,
         @NonNull ProxyConfigHolder proxy,
@@ -16,7 +16,7 @@ public record ConfigHolder(
 ) {
     public static ConfigHolder load(final FileConfiguration config) {
         return new ConfigHolder(
-                config.getString("rbw-name", ""),
+                config.getString("api-url", ""),
                 config.getString("token", ""),
                 config.getString("group-prefix", ""),
                 ProxyConfigHolder.load(config.getConfigurationSection("proxy")),
@@ -42,7 +42,7 @@ public record ConfigHolder(
 
     public YamlConfiguration toYaml() {
         final YamlConfiguration config = new YamlConfiguration();
-        config.set("rbw-name", rbwName);
+        config.set("api-url", apiUrl);
         config.set("token", token);
         config.set("group-prefix", groupPrefix);
         proxy.save(config.createSection("proxy"));

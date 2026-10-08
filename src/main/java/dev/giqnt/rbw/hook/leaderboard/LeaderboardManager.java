@@ -1,7 +1,6 @@
 package dev.giqnt.rbw.hook.leaderboard;
 
 import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.giqnt.rbw.hook.HookPlugin;
 import lombok.RequiredArgsConstructor;
@@ -27,12 +26,8 @@ public class LeaderboardManager {
     private void fetchAll() {
         try {
             for (final LeaderboardCategory category : LeaderboardCategory.values()) {
-                final String response = plugin.getApi().requestLegacy(String.format("/leaderboard?limit=10&sortBy=%s", category.name().toLowerCase()), "GET", null);
-                final JsonObject body = JsonParser.parseString(response).getAsJsonObject();
-                if (!body.get("success").getAsBoolean()) {
-                    throw new RuntimeException(String.format("Failed to fetch leaderboard data for category %s: %s", category, body.get("message").getAsString()));
-                }
-                final JsonArray data = body.getAsJsonArray("data");
+                final String response = plugin.getApi().request(String.format("/leaderboard?limit=10&sortBy=%s", category.name().toLowerCase()), "GET", null);
+                final JsonArray data = JsonParser.parseString(response).getAsJsonObject().getAsJsonArray("items");
                 final List<LeaderboardEntry> entries = new ArrayList<>();
                 data.forEach(entry -> {
                     final var obj = entry.getAsJsonObject();

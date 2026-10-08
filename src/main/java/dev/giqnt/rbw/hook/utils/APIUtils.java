@@ -12,12 +12,12 @@ import java.time.Duration;
 
 public class APIUtils {
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
-    private final String projectName;
+    private final String apiUrl;
     private final String token;
     private final OkHttpClient client;
 
-    public APIUtils(final String projectName, final String token, final ConfigHolder.ProxyConfigHolder proxyConfig) {
-        this.projectName = projectName;
+    public APIUtils(final String apiUrl, final String token, final ConfigHolder.ProxyConfigHolder proxyConfig) {
+        this.apiUrl = apiUrl.replaceFirst("/+$", "");
         this.token = token;
         final OkHttpClient.Builder builder = new OkHttpClient.Builder().pingInterval(Duration.ofSeconds(30));
         if (proxyConfig.enabled()) {
@@ -45,12 +45,11 @@ public class APIUtils {
 
     @NonNull
     public String request(
-            final int version,
             @NonNull final String endpoint,
             @NonNull final String method,
             @Nullable final String body
     ) throws IOException {
-        return request(version, endpoint, method, body, response -> {
+        return request(endpoint, method, body, response -> {
             if (!response.isSuccessful()) {
                 throw new IOException("Unexpected code " + response.code() + ": " + response.message());
             }
@@ -59,23 +58,15 @@ public class APIUtils {
         });
     }
 
+    /** The tenant comes from the gameserver token, so paths carry no server name. */
     public <T> T request(
-            final int version,
             @NonNull final String endpoint,
             @NonNull final String method,
             @Nullable final String body,
             @NonNull final ResponseHandler<T> handler
     ) throws IOException {
-        final StringBuilder urlBuilder = new StringBuilder("https://rbw.giqnt.dev/api/v");
-        urlBuilder.append(version);
-        urlBuilder.append("/projects/");
-        urlBuilder.append(projectName);
-        if (!endpoint.startsWith("/")) {
-            urlBuilder.append("/");
-        }
-        urlBuilder.append(endpoint);
         final Request request = new Request.Builder()
-                .url(urlBuilder.toString())
+                .url(apiUrl + (endpoint.startsWith("/") ? endpoint : "/" + endpoint))
                 .addHeader("Authorization", "Bearer " + token)
                 .addHeader("Content-Type", "application/json")
                 .method(method, body == null ? null : RequestBody.create(body, JSON))
@@ -86,41 +77,8 @@ public class APIUtils {
     }
 
     @NonNull
-    public String requestLegacy(
-            @NonNull final String endpoint,
-            @NonNull final String method,
-            @Nullable final String body
-    ) throws IOException {
-        return requestLegacy(endpoint, method, body, response -> {
-            if (!response.isSuccessful()) {
-                throw new IOException("Unexpected code " + response.code() + ": " + response.message());
-            }
-            final var responseBody = response.body();
-            return responseBody == null ? "" : responseBody.string();
-        });
-    }
-
-    public <T> T requestLegacy(
-            @NonNull final String endpoint,
-            @NonNull final String method,
-            @Nullable final String body,
-            @NonNull final ResponseHandler<T> handler
-    ) throws IOException {
-        final StringBuilder urlBuilder = new StringBuilder("https://rbw.giqnt.dev/project/");
-        urlBuilder.append(projectName);
-        if (!endpoint.startsWith("/")) {
-            urlBuilder.append("/");
-        }
-        urlBuilder.append(endpoint);
-        final Request request = new Request.Builder()
-                .url(urlBuilder.toString())
-                .addHeader("Authorization", "Bearer " + token)
-                .addHeader("Content-Type", "application/json")
-                .method(method, body == null ? null : RequestBody.create(body, JSON))
-                .build();
-        try (final Response response = client.newCall(request).execute()) {
-            return handler.handle(response);
-        }
+    public String webSocketUrl(@NonNull final String endpoint) {
+        return apiUrl.replaceFirst("^http", "ws") + endpoint;
     }
 
     @FunctionalInterface

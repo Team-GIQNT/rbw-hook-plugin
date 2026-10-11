@@ -29,7 +29,6 @@ public class GameCreateRequestHandler extends MessageHandler {
                 return;
             }
 
-            // Check for offline or unready players
             final List<GameCreateRequestTeamMemberData> missingPlayers = new ArrayList<>();
             final List<List<Player>> teamPlayers = data.teams().stream()
                     .map(team -> team.members()
@@ -48,7 +47,6 @@ public class GameCreateRequestHandler extends MessageHandler {
                 return;
             }
 
-            // Create the game
             replyWhenCreated(context, data.id(), plugin.getGameCreationManager().queue(data.id(), data.mapNames(), teamPlayers));
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error processing create_game request", e);
@@ -83,16 +81,10 @@ public class GameCreateRequestHandler extends MessageHandler {
         return List.copyOf(mapIds);
     }
 
-    /**
-     * Sends game creation failure with an error message.
-     */
     private void sendGameCreateFailure(final MessageHandlerContext context, final String message) {
         sendGameCreateFailure(context, message, null);
     }
 
-    /**
-     * Sends game creation failure with an error message and the map the arena was picked on, if any.
-     */
     private void sendGameCreateFailure(final MessageHandlerContext context, final String message, @Nullable final String mapName) {
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("success", false);
@@ -101,9 +93,6 @@ public class GameCreateRequestHandler extends MessageHandler {
         context.messageReplier().accept(responseData);
     }
 
-    /**
-     * Sends game creation failure with a list of offline players.
-     */
     private void sendGameCreateFailure(final MessageHandlerContext context, final List<GameCreateRequestTeamMemberData> offlinePlayers) {
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("success", false);
@@ -115,9 +104,6 @@ public class GameCreateRequestHandler extends MessageHandler {
         context.messageReplier().accept(responseData);
     }
 
-    /**
-     * Sends game creation success response.
-     */
     private void sendGameCreateSuccess(final MessageHandlerContext context, final String mapName) {
         final JsonObject responseData = new JsonObject();
         responseData.addProperty("success", true);

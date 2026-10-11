@@ -130,7 +130,6 @@ public class BedWars1058Adapter implements Adapter, Listener {
         final String arenaName = arena.getArenaName();
         arenaStartFutures.remove(arenaName);
         arenaToGame.remove(arenaName);
-        // Remove all players from the arena
         new ArrayList<>(arena.getPlayers()).forEach(player -> arena.removePlayer(player, false));
     }
 

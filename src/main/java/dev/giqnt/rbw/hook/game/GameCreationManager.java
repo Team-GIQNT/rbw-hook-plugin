@@ -28,14 +28,6 @@ public class GameCreationManager {
         });
     }
 
-    /**
-     * Queues a new ranked game for processing
-     *
-     * @param id       The unique game identifier
-     * @param mapNames The maps on which the game will be played
-     * @param teams    List of teams containing players
-     * @return A CompletableFuture that completes with the name of the map when the game is created
-     */
     public CompletableFuture<String> queue(final String id, @Nullable final List<String> mapNames, final List<List<Player>> teams) {
         final CompletableFuture<String> promise = new CompletableFuture<>();
         final CompletableFuture<String> existing = promises.putIfAbsent(id, promise);
@@ -46,7 +38,6 @@ public class GameCreationManager {
             if (ex != null) promises.remove(id, promise);
         });
 
-        // Create a set of all players from all teams
         final Set<Player> allPlayers = teams.stream()
                 .flatMap(Collection::stream)
                 .collect(Collectors.toUnmodifiableSet());
@@ -54,15 +45,12 @@ public class GameCreationManager {
         final RankedGame game = new RankedGame(id, mapNames, allPlayers, teams, promise);
         gameQueue.offer(game);
 
-        // Trigger queue processing
         triggerQueueProcessing();
 
         return promise;
     }
 
-    /**
-     * @return The promise of a game with this id that is being created or is running, so a repeated create gets the same result
-     */
+    // A repeated game.create for the same id must get the same result as the first one.
     public @Nullable CompletableFuture<String> find(final String id) {
         return promises.get(id);
     }
@@ -71,18 +59,12 @@ public class GameCreationManager {
         promises.remove(id);
     }
 
-    /**
-     * Triggers the queue processing if it's not already running
-     */
     private void triggerQueueProcessing() {
         if (processing.compareAndSet(false, true)) {
             executorService.execute(this::processQueue);
         }
     }
 
-    /**
-     * Processes all games in the queue sequentially
-     */
     private void processQueue() {
         try {
             RankedGame game;
@@ -102,16 +84,13 @@ public class GameCreationManager {
         } finally {
             processing.set(false);
 
-            // Check if new games were added while we were processing
+            // A game queued between the last poll and set(false) would otherwise never be processed.
             if (!gameQueue.isEmpty()) {
                 triggerQueueProcessing();
             }
         }
     }
 
-    /**
-     * Safely shuts down the executor service
-     */
     public void shutdown() {
         executorService.shutdown();
         try {

@@ -10,6 +10,7 @@ import dev.giqnt.rbw.hook.profile.PlayerProfileManager;
 import dev.giqnt.rbw.hook.utils.APIUtils;
 import dev.giqnt.rbw.hook.websocket.WebSocketManager;
 import lombok.Getter;
+import okhttp3.HttpUrl;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.Listener;
@@ -44,6 +45,11 @@ public class HookPlugin extends JavaPlugin {
         reloadConfig();
         if (this.configHolder.apiUrl().isEmpty() || this.configHolder.token().isEmpty()) {
             getLogger().severe("Set api-url and token (issued on the RBW dashboard) in config.yml, then restart.");
+            Bukkit.getPluginManager().disablePlugin(this);
+            return;
+        }
+        if (HttpUrl.parse(this.configHolder.apiUrl()) == null) {
+            getLogger().severe("api-url must be an http(s) URL, e.g. https://rbw.example.com");
             Bukkit.getPluginManager().disablePlugin(this);
             return;
         }

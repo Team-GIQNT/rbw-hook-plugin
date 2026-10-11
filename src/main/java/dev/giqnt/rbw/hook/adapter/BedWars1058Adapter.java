@@ -95,8 +95,10 @@ public class BedWars1058Adapter implements Adapter, Listener {
                 return null;
             }).get();
         } catch (InterruptedException | ExecutionException ex) {
+            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
             plugin.getLogger().log(Level.SEVERE, "Failed to add players to arena", ex);
-            Bukkit.getScheduler().runTask(plugin, () -> cancelArenaStart(selectedArena));
+            // Interrupted means the plugin is shutting down, and runTask throws on a disabled plugin.
+            if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> cancelArenaStart(selectedArena));
             throw new GameCreateException("Failed to add players to arena", ex);
         }
         selectedArena.setTeamAssigner(arena -> {

@@ -46,19 +46,7 @@ public class PlayerProfileManager implements Listener {
     @Nullable
     private PlayerProfile fetchProfile(final UUID uuid) {
         try {
-            final var result = plugin.getApi().request("/users?uuid=" + uuid, "GET", null, response -> {
-                if (response.code() == 404) {
-                    return null;
-                }
-                if (!response.isSuccessful()) {
-                    throw new IOException(String.format("Failed to fetch profile data for player %s: (%d) %s", uuid, response.code(), response.body()));
-                }
-                final var responseBody = response.body();
-                return responseBody == null ? "" : responseBody.string();
-            });
-            if (result == null) {
-                return null;
-            }
+            final var result = plugin.getApi().request("/users?uuid=" + uuid, "GET", null);
             final JsonArray data = items(result);
             if (data.isEmpty()) return null;
             return parseJson(data.get(0).getAsJsonObject());

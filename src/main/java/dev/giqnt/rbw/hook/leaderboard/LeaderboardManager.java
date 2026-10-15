@@ -32,7 +32,7 @@ public class LeaderboardManager {
                 data.forEach(entry -> {
                     final var obj = entry.getAsJsonObject();
                     final var nameElem = obj.get("name");
-                    entries.add(new LeaderboardEntry(nameElem.isJsonNull() ? null : nameElem.getAsString(), obj.get("value").getAsInt()));
+                    entries.add(new LeaderboardEntry(nameElem.isJsonNull() ? null : nameElem.getAsString(), obj.get("value").getAsNumber()));
                 });
                 leaderboards.put(category, new Leaderboard(List.copyOf(entries)));
             }

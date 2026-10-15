@@ -75,7 +75,7 @@ public class RBWPlaceholderExpansion extends PlaceholderExpansion {
                                 .map(elo -> {
                                     final var rankColors = plugin.getConfigHolder().rankColors();
                                     if (rankColors.isEmpty()) return null;
-                                    return Optional.ofNullable(rankColors.floorEntry(elo))
+                                    return Optional.ofNullable(rankColors.floorEntry(elo.intValue()))
                                             .orElseGet(rankColors::firstEntry);
                                 })
                                 .map(entry -> "&" + entry.getValue())

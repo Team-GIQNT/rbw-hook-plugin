@@ -94,10 +94,10 @@ public class PlayerProfileManager implements Listener {
 
     private PlayerProfile parseJson(final JsonObject data) {
         final JsonObject stats = data.getAsJsonObject("stats");
-        final Map<String, Integer> statsMap = new HashMap<>();
+        final Map<String, Number> statsMap = new HashMap<>();
         for (final var entry : stats.entrySet()) {
             try {
-                statsMap.put(entry.getKey(), entry.getValue().getAsInt());
+                statsMap.put(entry.getKey(), entry.getValue().getAsNumber());
             } catch (final UnsupportedOperationException | NumberFormatException | IllegalStateException ignored) {
             }
         }

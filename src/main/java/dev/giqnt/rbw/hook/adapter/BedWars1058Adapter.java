@@ -3,18 +3,20 @@ package dev.giqnt.rbw.hook.adapter;
 import com.andrei1058.bedwars.api.arena.GameState;
 import com.andrei1058.bedwars.api.arena.IArena;
 import com.andrei1058.bedwars.api.arena.stats.DefaultStatistics;
+import com.andrei1058.bedwars.api.arena.team.ITeamAssigner;
 import com.andrei1058.bedwars.api.configuration.ConfigPath;
 import com.andrei1058.bedwars.api.events.gameplay.GameEndEvent;
-import com.andrei1058.bedwars.api.events.gameplay.GameStateChangeEvent;
 import com.andrei1058.bedwars.api.events.player.PlayerJoinArenaEvent;
 import com.andrei1058.bedwars.api.events.player.PlayerLeaveArenaEvent;
 import com.andrei1058.bedwars.arena.Arena;
+import com.andrei1058.bedwars.arena.team.TeamAssigner;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.game.GameCreateException;
 import dev.giqnt.rbw.hook.game.RankedGame;
 import lombok.RequiredArgsConstructor;
+import okhttp3.Response;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -28,9 +30,20 @@ import java.util.logging.Level;
 
 @RequiredArgsConstructor
 public class BedWars1058Adapter implements Adapter, Listener {
+    private static final long[] REPORT_DELAY_TICKS = {0, 40, 80, 160, 320, 640};
     private final HookPlugin plugin;
-    private final ConcurrentMap<String, RankedGame> arenaToGame = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, CompletableFuture<Void>> arenaStartFutures = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ArenaSession> sessions = new ConcurrentHashMap<>();
+    private final ITeamAssigner teamAssigner = arena -> {
+        final ArenaSession session = sessions.get(arena.getArenaName());
+        if (session == null) {
+            new TeamAssigner().assignTeams(arena);
+            return;
+        }
+        final List<List<Player>> teams = session.game().teams();
+        for (int i = 0; i < teams.size(); i++) {
+            arena.getTeams().get(i).addPlayers(teams.get(i).toArray(new Player[0]));
+        }
+    };
 
     @Override
     public Collection<MapInfo> getMaps() {
@@ -57,7 +70,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
 
     @Override
     public @NonNull String createGame(@NonNull final RankedGame game) throws GameCreateException {
-        if (arenaToGame.values().stream().anyMatch(g -> g.id().equals(game.id()))) {
+        if (sessions.values().stream().anyMatch(s -> s.game().id().equals(game.id()))) {
             throw new GameCreateException("Game already created");
         }
         final List<List<Player>> teams = game.teams();
@@ -86,36 +99,41 @@ public class BedWars1058Adapter implements Adapter, Listener {
         final List<List<IArena>> arenaGroups = List.copyOf(mapToArenas.values());
         final List<IArena> arenas = arenaGroups.get(ThreadLocalRandom.current().nextInt(arenaGroups.size()));
         final IArena selectedArena = arenas.get(ThreadLocalRandom.current().nextInt(arenas.size()));
-        arenaToGame.put(selectedArena.getArenaName(), game);
+        final var session = new ArenaSession(game, new CompletableFuture<>());
+        sessions.put(selectedArena.getArenaName(), session);
         try {
             Bukkit.getScheduler().callSyncMethod(plugin, (Callable<Void>) () -> {
+                selectedArena.setTeamAssigner(teamAssigner);
                 for (final var player : game.players()) {
-                    selectedArena.addPlayer(player, true);
+                    // isReady lets spectators through: an eliminated player watches their last game until it restarts.
+                    final IArena watching = Arena.getArenaByPlayer(player);
+                    if (watching != null && watching.isSpectator(player)) watching.removeSpectator(player, false);
+                    if (!selectedArena.addPlayer(player, true)) {
+                        abort(selectedArena, session, String.format("Player `%s` could not join the game", player.getName()));
+                        return null;
+                    }
                 }
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (sessions.get(selectedArena.getArenaName()) != session) return;
+                    if (selectedArena.getStatus() == GameState.waiting) {
+                        abort(selectedArena, session, "Game not getting started");
+                    } else {
+                        session.started().complete(null);
+                    }
+                }, 30L);
                 return null;
             }).get();
         } catch (InterruptedException | ExecutionException ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
             plugin.getLogger().log(Level.SEVERE, "Failed to add players to arena", ex);
             // Interrupted means the plugin is shutting down, and runTask throws on a disabled plugin.
-            if (plugin.isEnabled()) Bukkit.getScheduler().runTask(plugin, () -> cancelArenaStart(selectedArena));
+            if (plugin.isEnabled()) {
+                Bukkit.getScheduler().runTask(plugin, () -> abort(selectedArena, session, "Failed to add players to arena"));
+            }
             throw new GameCreateException("Failed to add players to arena", ex);
         }
-        selectedArena.setTeamAssigner(arena -> {
-            for (int i = 0; i < teamCount; i++) {
-                var team = arena.getTeams().get(i);
-                team.addPlayers(teams.get(i).toArray(new Player[0]));
-            }
-        });
-        final var future = new CompletableFuture<Void>();
-        arenaStartFutures.put(selectedArena.getArenaName(), future);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (selectedArena.getStatus() != GameState.waiting) return;
-            future.completeExceptionally(new GameCreateException("Game not getting started"));
-            cancelArenaStart(selectedArena);
-        }, 30L);
         try {
-            future.join();
+            session.started().join();
         } catch (CompletionException ex) {
             if (ex.getCause() instanceof GameCreateException exception) {
                 throw new GameCreateException(exception.getMessage(), selectedArena.getDisplayName());
@@ -125,39 +143,51 @@ public class BedWars1058Adapter implements Adapter, Listener {
         return selectedArena.getDisplayName();
     }
 
-    private void cancelArenaStart(final IArena arena) {
-        if (arena == null) {
-            return;
-        }
-        final String arenaName = arena.getArenaName();
-        arenaStartFutures.remove(arenaName);
-        arenaToGame.remove(arenaName);
+    /** Main thread only. */
+    private void abort(final IArena arena, final ArenaSession session, final String reason) {
+        if (!sessions.remove(arena.getArenaName(), session)) return;
         new ArrayList<>(arena.getPlayers()).forEach(player -> arena.removePlayer(player, false));
+        if (session.started().completeExceptionally(new GameCreateException(reason))) return;
+        // game.create already reported success (or is about to), so only this report tells the api.
+        plugin.getGameCreationManager().forget(session.game().id());
+        final JsonObject data = new JsonObject();
+        data.addProperty("message", reason);
+        data.addProperty("mapName", arena.getDisplayName());
+        postUntilAccepted("/server-games/" + session.game().id() + "/start-failure", plugin.getGson().toJson(data), 0);
+    }
+
+    // The api ignores a repeated report, so retrying is safe; this covers api restarts during a deploy.
+    private void postUntilAccepted(final String endpoint, final String body, final int attempt) {
+        if (!plugin.isEnabled()) return;
+        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+            try {
+                final int code = plugin.getApi().request(endpoint, "POST", body, Response::code);
+                if (code < 500) {
+                    if (code >= 300) plugin.getLogger().warning("POST " + endpoint + " rejected: " + code);
+                    return;
+                }
+                plugin.getLogger().warning("POST " + endpoint + " failed: " + code);
+            } catch (IOException e) {
+                plugin.getLogger().warning("POST " + endpoint + " failed: " + e.getMessage());
+            }
+            if (attempt + 1 < REPORT_DELAY_TICKS.length) {
+                postUntilAccepted(endpoint, body, attempt + 1);
+            } else {
+                plugin.getLogger().severe("Giving up POST " + endpoint);
+            }
+        }, REPORT_DELAY_TICKS[attempt]);
     }
 
     @EventHandler
     public void onArenaLeave(final PlayerLeaveArenaEvent event) {
+        if (event.isSpectator()) return;
         final var arena = event.getArena();
-        if (arena == null || arena.getStatus() == GameState.playing) {
+        if (arena == null || (arena.getStatus() != GameState.waiting && arena.getStatus() != GameState.starting)) {
             return;
         }
-        final String arenaName = arena.getArenaName();
-        CompletableFuture<Void> future = arenaStartFutures.get(arenaName);
-        if (future == null) return;
-        cancelArenaStart(arena);
-        future.completeExceptionally(new GameCreateException(
-                String.format("Player `%s` left the game", event.getPlayer().getName())
-        ));
-    }
-
-    @EventHandler
-    public void onGameStart(final GameStateChangeEvent event) {
-        if (event.getNewState() != GameState.playing) return;
-        final String arenaName = event.getArena().getArenaName();
-        CompletableFuture<Void> future = arenaStartFutures.remove(arenaName);
-        if (future != null) {
-            future.complete(null);
-        }
+        final ArenaSession session = sessions.get(arena.getArenaName());
+        if (session == null) return;
+        abort(arena, session, String.format("Player `%s` left the game", event.getPlayer().getName()));
     }
 
     @EventHandler
@@ -167,10 +197,11 @@ public class BedWars1058Adapter implements Adapter, Listener {
             return;
         }
         final String arenaName = arena.getArenaName();
-        final RankedGame rankedGame = arenaToGame.remove(arenaName);
-        if (rankedGame == null) {
+        final ArenaSession session = sessions.remove(arenaName);
+        if (session == null) {
             return;
         }
+        final RankedGame rankedGame = session.game();
         plugin.getGameCreationManager().forget(rankedGame.id());
         JsonArray teamsData = new JsonArray();
         final UUID winningTeamId = event.getTeamWinner().getIdentity();
@@ -216,9 +247,12 @@ public class BedWars1058Adapter implements Adapter, Listener {
         if (arena == null || !arena.getGroup().startsWith(plugin.getConfigHolder().groupPrefix())) {
             return;
         }
-        final RankedGame rankedGame = arenaToGame.get(arena.getArenaName());
-        if (rankedGame == null || !rankedGame.players().contains(event.getPlayer())) {
+        final ArenaSession session = sessions.get(arena.getArenaName());
+        if (session == null || !session.game().players().contains(event.getPlayer())) {
             event.setCancelled(true);
         }
+    }
+
+    private record ArenaSession(RankedGame game, CompletableFuture<Void> started) {
     }
 }

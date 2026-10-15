@@ -101,7 +101,7 @@ public class PlayerProfileManager implements Listener {
             } catch (final UnsupportedOperationException | NumberFormatException | IllegalStateException ignored) {
             }
         }
-        return new PlayerProfile(Map.copyOf(statsMap), Map.of());
+        return new PlayerProfile(Map.copyOf(statsMap), data.get("position").getAsInt());
     }
 
     public Optional<PlayerProfile> getProfile(final Player player) {

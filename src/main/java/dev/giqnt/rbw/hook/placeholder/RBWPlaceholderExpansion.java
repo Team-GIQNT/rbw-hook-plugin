@@ -66,6 +66,13 @@ public class RBWPlaceholderExpansion extends PlaceholderExpansion {
                             .map(String::valueOf)
                             .orElse("???");
                 }
+                case "position": {
+                    if (player == null) return null;
+                    if (parts.length != 1) return null;
+                    return plugin.getPlayerProfileManager().getProfile(player)
+                            .map(profile -> String.valueOf(profile.position()))
+                            .orElse("???");
+                }
                 case "rank": {
                     if (player == null) return null;
                     if (parts.length != 2) return null;

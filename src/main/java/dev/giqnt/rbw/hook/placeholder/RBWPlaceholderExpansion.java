@@ -8,7 +8,6 @@ import org.bukkit.entity.Player;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
-import java.util.Objects;
 import java.util.Optional;
 
 @RequiredArgsConstructor
@@ -49,12 +48,9 @@ public class RBWPlaceholderExpansion extends PlaceholderExpansion {
                     if (rank < 1) return null;
                     final String field = parts[3];
                     if (!field.equals("name") && !field.equals("value")) return null;
-                    final var entry = plugin.getLeaderboardManager().getEntry(category, rank - 1);
-                    if (field.equals("name")) {
-                        return Objects.requireNonNullElse(entry.name(), "???");
-                    } else {
-                        return String.valueOf(entry.value());
-                    }
+                    return plugin.getLeaderboardManager().getEntry(category, rank - 1)
+                            .map(entry -> field.equals("name") ? entry.name() : String.valueOf(entry.value()))
+                            .orElse("???");
                 }
                 case "stats": {
                     // stats_<type>

@@ -31,7 +31,9 @@ import java.util.logging.Level;
 
 @RequiredArgsConstructor
 public class BedWars1058Adapter implements Adapter, Listener {
-    private static final long[] REPORT_DELAY_TICKS = {0, 40, 80, 160, 320, 640};
+    // 0, 2, 4, ..., 32s, then every 60s: about 10 minutes, to outlast a slow api deploy.
+    private static final int REPORT_ATTEMPTS = 15;
+    private static final long REPORT_MAX_DELAY_TICKS = 20 * 60;
     private final HookPlugin plugin;
     private final ConcurrentMap<String, ArenaSession> sessions = new ConcurrentHashMap<>();
     /** Game id to map name, for ended games whose result is still being reported. */
@@ -187,13 +189,13 @@ public class BedWars1058Adapter implements Adapter, Listener {
             } catch (IOException e) {
                 plugin.getLogger().warning("POST " + endpoint + " failed: " + e.getMessage());
             }
-            if (attempt + 1 < REPORT_DELAY_TICKS.length) {
+            if (attempt + 1 < REPORT_ATTEMPTS) {
                 postUntilAccepted(endpoint, body, done, attempt + 1);
             } else {
                 plugin.getLogger().severe("Giving up POST " + endpoint);
                 done.run();
             }
-        }, REPORT_DELAY_TICKS[attempt]);
+        }, attempt == 0 ? 0 : Math.min(20L << attempt, REPORT_MAX_DELAY_TICKS));
     }
 
     @EventHandler

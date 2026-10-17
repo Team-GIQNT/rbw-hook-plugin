@@ -51,7 +51,9 @@ public class PlayerProfileManager implements Listener {
             if (data.isEmpty()) return null;
             return parseJson(data.get(0).getAsJsonObject());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            // The bulk refresh fills it in within a minute.
+            plugin.getLogger().warning("Failed to fetch profile of " + uuid + ": " + e.getMessage());
+            return null;
         }
     }
 
@@ -84,7 +86,7 @@ public class PlayerProfileManager implements Listener {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            plugin.getLogger().warning("Failed to update profiles: " + e.getMessage());
         }
     }
 

@@ -234,6 +234,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
             team.getMembersCache().forEach(member -> {
                 JsonObject playerData = new JsonObject();
                 playerData.addProperty("name", member.getName());
+                playerData.addProperty("uuid", member.getUniqueId().toString());
                 arena.getStatsHolder().get(member.getUniqueId()).ifPresentOrElse(stats -> {
                     stats.getStatistic(DefaultStatistics.KILLS)
                             .ifPresent(stat -> playerData.addProperty("kills", (int) stat.getValue()));

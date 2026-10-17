@@ -1,6 +1,7 @@
 package dev.giqnt.rbw.hook.adapter;
 
 import dev.giqnt.rbw.hook.game.GameCreateException;
+import dev.giqnt.rbw.hook.game.HostedGame;
 import dev.giqnt.rbw.hook.game.RankedGame;
 import org.bukkit.entity.Player;
 import org.jspecify.annotations.NonNull;
@@ -22,5 +23,15 @@ public class EmptyAdapter implements Adapter {
     @Override
     public @NonNull String createGame(RankedGame game) {
         throw new GameCreateException("BedWars adapter not defined.");
+    }
+
+    @Override
+    public boolean canHostGames() {
+        return false;
+    }
+
+    @Override
+    public Collection<HostedGame> getGames() {
+        return List.of();
     }
 }

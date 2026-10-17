@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.websocket.handlers.GameCreateRequestHandler;
+import dev.giqnt.rbw.hook.websocket.handlers.GameListRequestHandler;
 import dev.giqnt.rbw.hook.websocket.handlers.PlayerMessageSendRequestHandler;
 import dev.giqnt.rbw.hook.websocket.handlers.PlayerStateGetRequestHandler;
 import okhttp3.Request;
@@ -37,7 +38,8 @@ public class WebSocketManager implements Listener {
     private final Map<String, MessageHandler> handlerMap = Map.of(
             "player.state.get", new PlayerStateGetRequestHandler(),
             "player.message.send", new PlayerMessageSendRequestHandler(),
-            "game.create", new GameCreateRequestHandler()
+            "game.create", new GameCreateRequestHandler(),
+            "game.list", new GameListRequestHandler()
     );
     private volatile WebSocket webSocket;
 

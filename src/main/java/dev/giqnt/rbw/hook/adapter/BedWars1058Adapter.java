@@ -14,6 +14,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.game.GameCreateException;
+import dev.giqnt.rbw.hook.game.HostedGame;
 import dev.giqnt.rbw.hook.game.RankedGame;
 import lombok.RequiredArgsConstructor;
 import okhttp3.Response;
@@ -33,6 +34,8 @@ public class BedWars1058Adapter implements Adapter, Listener {
     private static final long[] REPORT_DELAY_TICKS = {0, 40, 80, 160, 320, 640};
     private final HookPlugin plugin;
     private final ConcurrentMap<String, ArenaSession> sessions = new ConcurrentHashMap<>();
+    /** Game id to map name, for ended games whose result is still being reported. */
+    private final ConcurrentMap<String, String> pendingResults = new ConcurrentHashMap<>();
     private final ITeamAssigner teamAssigner = arena -> {
         final ArenaSession session = sessions.get(arena.getArenaName());
         if (session == null) {
@@ -99,7 +102,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
         final List<List<IArena>> arenaGroups = List.copyOf(mapToArenas.values());
         final List<IArena> arenas = arenaGroups.get(ThreadLocalRandom.current().nextInt(arenaGroups.size()));
         final IArena selectedArena = arenas.get(ThreadLocalRandom.current().nextInt(arenas.size()));
-        final var session = new ArenaSession(game, new CompletableFuture<>());
+        final var session = new ArenaSession(game, selectedArena.getDisplayName(), new CompletableFuture<>());
         sessions.put(selectedArena.getArenaName(), session);
         try {
             Bukkit.getScheduler().callSyncMethod(plugin, (Callable<Void>) () -> {
@@ -153,17 +156,18 @@ public class BedWars1058Adapter implements Adapter, Listener {
         final JsonObject data = new JsonObject();
         data.addProperty("message", reason);
         data.addProperty("mapName", arena.getDisplayName());
-        postUntilAccepted("/server-games/" + session.game().id() + "/start-failure", plugin.getGson().toJson(data), 0);
+        postUntilAccepted("/server-games/" + session.game().id() + "/start-failure", plugin.getGson().toJson(data), () -> {}, 0);
     }
 
     // The api ignores a repeated report, so retrying is safe; this covers api restarts during a deploy.
-    private void postUntilAccepted(final String endpoint, final String body, final int attempt) {
+    private void postUntilAccepted(final String endpoint, final String body, final Runnable done, final int attempt) {
         if (!plugin.isEnabled()) return;
         Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
             try {
                 final int code = plugin.getApi().request(endpoint, "POST", body, Response::code);
                 if (code < 500) {
                     if (code >= 300) plugin.getLogger().warning("POST " + endpoint + " rejected: " + code);
+                    done.run();
                     return;
                 }
                 plugin.getLogger().warning("POST " + endpoint + " failed: " + code);
@@ -171,9 +175,10 @@ public class BedWars1058Adapter implements Adapter, Listener {
                 plugin.getLogger().warning("POST " + endpoint + " failed: " + e.getMessage());
             }
             if (attempt + 1 < REPORT_DELAY_TICKS.length) {
-                postUntilAccepted(endpoint, body, attempt + 1);
+                postUntilAccepted(endpoint, body, done, attempt + 1);
             } else {
                 plugin.getLogger().severe("Giving up POST " + endpoint);
+                done.run();
             }
         }, REPORT_DELAY_TICKS[attempt]);
     }
@@ -193,7 +198,7 @@ public class BedWars1058Adapter implements Adapter, Listener {
     @EventHandler
     public void onGameEnd(final GameEndEvent event) {
         final var arena = event.getArena();
-        if (arena == null || arena.getStatsHolder() == null) {
+        if (arena == null) {
             return;
         }
         final String arenaName = arena.getArenaName();
@@ -201,8 +206,13 @@ public class BedWars1058Adapter implements Adapter, Listener {
         if (session == null) {
             return;
         }
+        // A game can end before the 30-tick check, which then finds no session and would leave createGame waiting forever.
+        session.started().complete(null);
         final RankedGame rankedGame = session.game();
         plugin.getGameCreationManager().forget(rankedGame.id());
+        if (arena.getStatsHolder() == null) {
+            return;
+        }
         JsonArray teamsData = new JsonArray();
         final UUID winningTeamId = event.getTeamWinner().getIdentity();
         arena.getTeams().forEach(team -> {
@@ -230,14 +240,22 @@ public class BedWars1058Adapter implements Adapter, Listener {
         final JsonObject data = new JsonObject();
         data.add("teams", teamsData);
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                plugin.getApi().request("/server-games/" + rankedGame.id() + "/result", "POST", plugin.getGson().toJson(data));
-            } catch (IOException e) {
-                plugin.getLogger().severe("Failed to send game data to rbw bot: " + e.getMessage());
-                throw new RuntimeException("Failed to send game data to rbw bot", e);
+        pendingResults.put(rankedGame.id(), session.mapName());
+        postUntilAccepted("/server-games/" + rankedGame.id() + "/result", plugin.getGson().toJson(data),
+                () -> pendingResults.remove(rankedGame.id()), 0);
+    }
+
+    @Override
+    public Collection<HostedGame> getGames() {
+        final List<HostedGame> games = new ArrayList<>();
+        for (final ArenaSession session : sessions.values()) {
+            final CompletableFuture<Void> started = session.started();
+            if (started.isDone() && !started.isCompletedExceptionally()) {
+                games.add(new HostedGame(session.game().id(), HostedGame.State.STARTED, session.mapName()));
             }
-        });
+        }
+        pendingResults.forEach((id, mapName) -> games.add(new HostedGame(id, HostedGame.State.ENDED, mapName)));
+        return games;
     }
 
     @EventHandler
@@ -253,6 +271,6 @@ public class BedWars1058Adapter implements Adapter, Listener {
         }
     }
 
-    private record ArenaSession(RankedGame game, CompletableFuture<Void> started) {
+    private record ArenaSession(RankedGame game, String mapName, CompletableFuture<Void> started) {
     }
 }

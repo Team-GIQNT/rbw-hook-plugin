@@ -6,6 +6,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,6 +58,13 @@ public class GameCreationManager {
 
     public void forget(final String id) {
         promises.remove(id);
+    }
+
+    public List<String> creatingIds() {
+        return promises.entrySet().stream()
+                .filter(entry -> !entry.getValue().isDone())
+                .map(Map.Entry::getKey)
+                .toList();
     }
 
     private void triggerQueueProcessing() {

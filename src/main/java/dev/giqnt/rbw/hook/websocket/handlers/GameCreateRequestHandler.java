@@ -20,6 +20,14 @@ public class GameCreateRequestHandler extends MessageHandler {
     @Override
     public void execute(@NonNull final MessageHandlerContext context) {
         final var plugin = context.plugin();
+        if (!plugin.getBedWars().canHostGames()) {
+            final JsonObject responseData = new JsonObject();
+            responseData.addProperty("success", false);
+            responseData.addProperty("unsupported", true);
+            responseData.addProperty("message", "This server can't host games.");
+            context.messageReplier().accept(responseData);
+            return;
+        }
         try {
             final var data = plugin.getGson().fromJson(context.data(), GameCreateRequestData.class);
             final var existing = plugin.getGameCreationManager().find(data.id());

@@ -12,6 +12,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
+import org.bukkit.Bukkit;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.logging.Level;
 
 public class WebSocketManager implements Listener {
@@ -138,7 +140,7 @@ public class WebSocketManager implements Listener {
     }
 
     private CompletionStage<Void> handleMessage(final String message) {
-        return CompletableFuture.runAsync(() -> {
+        return CompletableFuture.supplyAsync(() -> {
             final JsonObject json = JsonParser.parseString(message).getAsJsonObject();
             final MessageType type = MessageType.byValue(json.get("type").getAsString());
             final String action = json.get("action").getAsString();
@@ -147,9 +149,9 @@ public class WebSocketManager implements Listener {
             final MessageHandler handler = handlerMap.get(action);
             if (handler == null) {
                 plugin.getLogger().log(Level.WARNING, String.format("[ws] No handler for action '%s'", action));
-                return;
+                return CompletableFuture.<Void>completedFuture(null);
             }
-            handler.execute(new MessageHandlerContext(
+            final MessageHandlerContext context = new MessageHandlerContext(
                     plugin,
                     plugin.getLogger(),
                     data,
@@ -158,8 +160,14 @@ public class WebSocketManager implements Listener {
                     } : (msgData) -> {
                         throw new UnsupportedOperationException("Reply can only be sent to 'request' type message");
                     }
-            ));
-        });
+            );
+            if (!handler.runsOnMainThread()) {
+                handler.execute(context);
+                return CompletableFuture.<Void>completedFuture(null);
+            }
+            return CompletableFuture.runAsync(() -> handler.execute(context),
+                    task -> Bukkit.getScheduler().runTask(plugin, task));
+        }).thenCompose(Function.identity());
     }
 
     @EventHandler

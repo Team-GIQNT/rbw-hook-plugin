@@ -76,6 +76,35 @@ public class BedWars1058Adapter implements Adapter, Listener {
         if (sessions.values().stream().anyMatch(s -> s.game().id().equals(game.id()))) {
             throw new GameCreateException("Game already created");
         }
+        final ArenaSession session;
+        try {
+            session = Bukkit.getScheduler().callSyncMethod(plugin, () -> startSession(game)).get();
+        } catch (InterruptedException | ExecutionException ex) {
+            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
+            if (ex.getCause() instanceof GameCreateException exception) throw exception;
+            plugin.getLogger().log(Level.SEVERE, "Failed to add players to arena", ex);
+            // Interrupted means the plugin is shutting down, and runTask throws on a disabled plugin.
+            if (plugin.isEnabled()) {
+                Bukkit.getScheduler().runTask(plugin, () -> sessions.forEach((arenaName, s) -> {
+                    final IArena arena = Arena.getArenaByName(arenaName);
+                    if (s.game() == game && arena != null) abort(arena, s, "Failed to add players to arena");
+                }));
+            }
+            throw new GameCreateException("Failed to add players to arena", ex);
+        }
+        try {
+            session.started().join();
+        } catch (CompletionException ex) {
+            if (ex.getCause() instanceof GameCreateException exception) {
+                throw new GameCreateException(exception.getMessage(), session.mapName());
+            }
+            throw new RuntimeException("Failed to create game", ex);
+        }
+        return session.mapName();
+    }
+
+    /** Main thread only. */
+    private ArenaSession startSession(final RankedGame game) {
         final List<List<Player>> teams = game.teams();
         final List<String> mapNames = game.mapNames();
         final Set<String> mapNameSet = mapNames == null ? null : Set.copyOf(mapNames);
@@ -105,45 +134,29 @@ public class BedWars1058Adapter implements Adapter, Listener {
         final var session = new ArenaSession(game, selectedArena.getDisplayName(), new CompletableFuture<>());
         sessions.put(selectedArena.getArenaName(), session);
         try {
-            Bukkit.getScheduler().callSyncMethod(plugin, (Callable<Void>) () -> {
-                selectedArena.setTeamAssigner(teamAssigner);
-                for (final var player : game.players()) {
-                    // isReady lets spectators through: an eliminated player watches their last game until it restarts.
-                    final IArena watching = Arena.getArenaByPlayer(player);
-                    if (watching != null && watching.isSpectator(player)) watching.removeSpectator(player, false);
-                    if (!selectedArena.addPlayer(player, true)) {
-                        abort(selectedArena, session, String.format("Player `%s` could not join the game", player.getName()));
-                        return null;
-                    }
+            selectedArena.setTeamAssigner(teamAssigner);
+            for (final var player : game.players()) {
+                // isReady lets spectators through: an eliminated player watches their last game until it restarts.
+                final IArena watching = Arena.getArenaByPlayer(player);
+                if (watching != null && watching.isSpectator(player)) watching.removeSpectator(player, false);
+                if (!selectedArena.addPlayer(player, true)) {
+                    abort(selectedArena, session, String.format("Player `%s` could not join the game", player.getName()));
+                    return session;
                 }
-                Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    if (sessions.get(selectedArena.getArenaName()) != session) return;
-                    if (selectedArena.getStatus() == GameState.waiting) {
-                        abort(selectedArena, session, "Game not getting started");
-                    } else {
-                        session.started().complete(null);
-                    }
-                }, 30L);
-                return null;
-            }).get();
-        } catch (InterruptedException | ExecutionException ex) {
-            if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
-            plugin.getLogger().log(Level.SEVERE, "Failed to add players to arena", ex);
-            // Interrupted means the plugin is shutting down, and runTask throws on a disabled plugin.
-            if (plugin.isEnabled()) {
-                Bukkit.getScheduler().runTask(plugin, () -> abort(selectedArena, session, "Failed to add players to arena"));
             }
-            throw new GameCreateException("Failed to add players to arena", ex);
+        } catch (RuntimeException ex) {
+            abort(selectedArena, session, "Failed to add players to arena");
+            throw ex;
         }
-        try {
-            session.started().join();
-        } catch (CompletionException ex) {
-            if (ex.getCause() instanceof GameCreateException exception) {
-                throw new GameCreateException(exception.getMessage(), selectedArena.getDisplayName());
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (sessions.get(selectedArena.getArenaName()) != session) return;
+            if (selectedArena.getStatus() == GameState.waiting) {
+                abort(selectedArena, session, "Game not getting started");
+            } else {
+                session.started().complete(null);
             }
-            throw new RuntimeException("Failed to create game", ex);
-        }
-        return selectedArena.getDisplayName();
+        }, 30L);
+        return session;
     }
 
     /** Main thread only. */

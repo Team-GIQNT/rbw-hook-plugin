@@ -104,9 +104,10 @@ public class HookPlugin extends JavaPlugin {
         }
     }
 
+    /** Main thread only. */
     public void updateMaps() {
+        final var maps = this.bedWars.getMaps();
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-            final var maps = this.bedWars.getMaps();
             try {
                 this.api.request("/maps", "PUT", gson.toJson(maps));
             } catch (IOException e) {

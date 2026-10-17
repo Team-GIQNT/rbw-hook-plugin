@@ -25,4 +25,10 @@ public class GameListRequestHandler extends MessageHandler {
         responseData.add("games", plugin.getGson().toJsonTree(games.values()));
         context.messageReplier().accept(responseData);
     }
+
+    // Reads only concurrent maps, and the api expects an answer even while the main thread is busy.
+    @Override
+    public boolean runsOnMainThread() {
+        return false;
+    }
 }

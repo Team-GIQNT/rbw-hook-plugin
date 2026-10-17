@@ -1,7 +1,6 @@
 package dev.giqnt.rbw.hook.websocket.handlers;
 
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.game.GameCreateException;
 import dev.giqnt.rbw.hook.websocket.MessageHandler;
@@ -78,15 +77,6 @@ public class GameCreateRequestHandler extends MessageHandler {
             }
             return null;
         });
-    }
-
-    private @Nullable List<String> resolveMapNames(final JsonElement element) {
-        if (element == null || !element.isJsonArray()) return null;
-        final List<String> mapIds = new ArrayList<>();
-        for (final JsonElement el : element.getAsJsonArray()) {
-            if (el.isJsonPrimitive()) mapIds.add(el.getAsString());
-        }
-        return List.copyOf(mapIds);
     }
 
     private void sendGameCreateFailure(final MessageHandlerContext context, final String message) {

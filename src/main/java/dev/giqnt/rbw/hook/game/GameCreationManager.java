@@ -82,7 +82,9 @@ public class GameCreationManager {
                     final String mapName = this.plugin.getBedWars().createGame(game);
                     this.plugin.getLogger().info("Successfully created game #" + game.id() + " on map " + mapName);
                     game.promise().complete(mapName);
-                } catch (Exception ex) {
+                } catch (Throwable ex) {
+                    // Also Errors: an uncompleted promise keeps the game listed as creating forever.
+                    // Not rethrown, since the executor would swallow it and the next queued game still deserves a try.
                     this.plugin.getLogger().log(Level.SEVERE, "Failed to create game #" + game.id(), ex);
                     game.promise().completeExceptionally(ex);
                 }

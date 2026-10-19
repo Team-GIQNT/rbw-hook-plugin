@@ -161,10 +161,6 @@ public class WebSocketManager implements Listener {
                         throw new UnsupportedOperationException("Reply can only be sent to 'request' type message");
                     }
             );
-            if (!handler.runsOnMainThread()) {
-                handler.execute(context);
-                return CompletableFuture.<Void>completedFuture(null);
-            }
             return CompletableFuture.runAsync(() -> handler.execute(context),
                     task -> Bukkit.getScheduler().runTask(plugin, task));
         }).thenCompose(Function.identity());

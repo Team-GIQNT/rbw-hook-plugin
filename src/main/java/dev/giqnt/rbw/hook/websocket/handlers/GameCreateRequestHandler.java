@@ -3,6 +3,7 @@ package dev.giqnt.rbw.hook.websocket.handlers;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.game.GameCreateException;
+import dev.giqnt.rbw.hook.game.RankedGame;
 import dev.giqnt.rbw.hook.websocket.MessageHandler;
 import dev.giqnt.rbw.hook.websocket.MessageHandlerContext;
 import org.bukkit.entity.Player;
@@ -10,10 +11,12 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 public class GameCreateRequestHandler extends MessageHandler {
     @Override
@@ -29,10 +32,13 @@ public class GameCreateRequestHandler extends MessageHandler {
         }
         try {
             final var data = plugin.getGson().fromJson(context.data(), GameCreateRequestData.class);
-            final var existing = plugin.getGameCreationManager().find(data.id());
-            if (existing != null) {
-                plugin.getLogger().info("Game " + data.id() + " already requested, replying with its result");
-                replyWhenCreated(context, data.id(), existing);
+            // A repeated game.create for the same id must get the same result as the first one.
+            final var existing = plugin.getBedWars().getGames().stream()
+                    .filter(game -> game.id().equals(data.id()))
+                    .findFirst();
+            if (existing.isPresent()) {
+                plugin.getLogger().info("Game " + data.id() + " already created, replying with its result");
+                sendGameCreateSuccess(context, existing.get().mapName());
                 return;
             }
 
@@ -54,29 +60,20 @@ public class GameCreateRequestHandler extends MessageHandler {
                 return;
             }
 
-            replyWhenCreated(context, data.id(), plugin.getGameCreationManager().queue(data.id(), data.mapNames(), teamPlayers));
+            final Set<Player> players = teamPlayers.stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toUnmodifiableSet());
+            plugin.getLogger().info("Creating game " + data.id());
+            final String mapName = plugin.getBedWars().createGame(new RankedGame(data.id(), data.mapNames(), players, teamPlayers));
+            plugin.getLogger().info("Successfully created game " + data.id() + " on map " + mapName);
+            sendGameCreateSuccess(context, mapName);
+        } catch (GameCreateException e) {
+            plugin.getLogger().log(Level.SEVERE, "Failed to create game", e);
+            sendGameCreateFailure(context, e.getMessage(), e.getMapName());
         } catch (Exception e) {
             plugin.getLogger().log(Level.SEVERE, "Error processing create_game request", e);
             sendGameCreateFailure(context, "Internal server error");
         }
-    }
-
-    private void replyWhenCreated(final MessageHandlerContext context, final String id, final CompletableFuture<String> promise) {
-        final var plugin = context.plugin();
-        promise.handle((mapName, ex) -> {
-            if (ex != null) {
-                plugin.getLogger().log(Level.SEVERE, "Failed to create game " + id, ex);
-                if (ex instanceof GameCreateException gameCreateException) {
-                    sendGameCreateFailure(context, gameCreateException.getMessage(), gameCreateException.getMapName());
-                } else {
-                    sendGameCreateFailure(context, "Internal server error");
-                }
-            } else {
-                plugin.getLogger().info("Successfully created game " + id);
-                sendGameCreateSuccess(context, mapName);
-            }
-            return null;
-        });
     }
 
     private void sendGameCreateFailure(final MessageHandlerContext context, final String message) {

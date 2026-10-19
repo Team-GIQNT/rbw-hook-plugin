@@ -7,11 +7,13 @@ import org.jspecify.annotations.NonNull;
 
 import java.util.Collection;
 
+/** Called on the main thread only. */
 public interface Adapter {
     Collection<MapInfo> getMaps();
 
     boolean isReady(final Player player);
 
+    /** Returns the map name once the arena is counting down, or throws GameCreateException. */
     @NonNull
     String createGame(final RankedGame game);
 

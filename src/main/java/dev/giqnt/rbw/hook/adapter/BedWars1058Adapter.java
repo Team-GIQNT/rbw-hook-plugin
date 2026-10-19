@@ -8,6 +8,8 @@ import com.andrei1058.bedwars.api.configuration.ConfigPath;
 import com.andrei1058.bedwars.api.events.gameplay.GameEndEvent;
 import com.andrei1058.bedwars.api.events.player.PlayerJoinArenaEvent;
 import com.andrei1058.bedwars.api.events.player.PlayerLeaveArenaEvent;
+import com.andrei1058.bedwars.api.events.server.ArenaDisableEvent;
+import com.andrei1058.bedwars.api.events.server.ArenaRestartEvent;
 import com.andrei1058.bedwars.arena.Arena;
 import com.andrei1058.bedwars.arena.team.TeamAssigner;
 import com.google.gson.JsonArray;
@@ -229,22 +231,30 @@ public class BedWars1058Adapter implements Adapter, Listener {
                 () -> pendingResults.remove(rankedGame.id()), 0);
     }
 
+    // An arena can restart without GameEndEvent, e.g. a draw when the game timer runs out.
+    // Not on GameStateChangeEvent(restarting): BedWars fires it before GameEndEvent, so every result would be lost.
+    @EventHandler
+    public void onArenaRestart(final ArenaRestartEvent event) {
+        dropSession(event.getArenaName());
+    }
+
+    @EventHandler
+    public void onArenaDisable(final ArenaDisableEvent event) {
+        dropSession(event.getArenaName());
+    }
+
+    private void dropSession(final String arenaName) {
+        final ArenaSession session = sessions.remove(arenaName);
+        if (session == null) return;
+        plugin.getLogger().warning("Dropping game #" + session.game().id() + ": arena " + arenaName
+                + " closed without a result");
+    }
+
     @Override
     public Collection<HostedGame> getGames() {
         final List<HostedGame> games = new ArrayList<>();
-        // An arena can restart without GameEndEvent, e.g. a draw when the game timer runs out.
-        sessions.entrySet().removeIf(entry -> {
-            final IArena arena = Arena.getArenaByName(entry.getKey());
-            final GameState status = arena == null ? null : arena.getStatus();
-            final ArenaSession session = entry.getValue();
-            if (status == GameState.starting || status == GameState.playing) {
-                games.add(new HostedGame(session.game().id(), HostedGame.State.STARTED, session.mapName()));
-                return false;
-            }
-            plugin.getLogger().warning("Dropping game #" + session.game().id() + ": arena " + entry.getKey()
-                    + " is " + status + " without a result");
-            return true;
-        });
+        sessions.values().forEach(session ->
+                games.add(new HostedGame(session.game().id(), HostedGame.State.STARTED, session.mapName())));
         pendingResults.forEach((id, mapName) -> games.add(new HostedGame(id, HostedGame.State.ENDED, mapName)));
         return games;
     }

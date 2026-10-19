@@ -50,7 +50,12 @@ public class HookPlugin extends JavaPlugin {
             Bukkit.getPluginManager().disablePlugin(this);
             return;
         }
-        this.api = new APIUtils(this.configHolder.apiUrl(), this.configHolder.token(), this.configHolder.proxy());
+        this.api = new APIUtils(
+                this.configHolder.apiUrl(),
+                this.configHolder.token(),
+                this.configHolder.proxy(),
+                getDescription().getVersion()
+        );
         this.leaderboardManager = new LeaderboardManager(this);
         this.playerProfileManager = new PlayerProfileManager(this);
         this.bedWars = AdapterFactory.getAdapter(this);

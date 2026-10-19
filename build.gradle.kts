@@ -5,6 +5,11 @@ plugins {
 }
 
 group = "dev.giqnt.rbw.hook"
+// Only v2 tags: `v1` marks the retired v1. With no matching tag this is the commit sha.
+version = providers.exec {
+    commandLine("git", "describe", "--tags", "--always", "--dirty", "--match", "v2*")
+    isIgnoreExitValue = true
+}.standardOutput.asText.map { it.trim().removePrefix("v").ifEmpty { "unknown" } }.get()
 
 repositories {
     mavenCentral()
@@ -33,12 +38,21 @@ java {
 }
 
 tasks {
+    processResources {
+        val version = project.version.toString()
+        inputs.property("version", version)
+        filesMatching("plugin.yml") {
+            expand("version" to version)
+        }
+    }
+
     jar {
         archiveClassifier.set("not-shaded")
     }
 
     shadowJar {
         archiveClassifier.set(null)
+        archiveFileName.set("rbw-hook.jar")
         enableAutoRelocation.set(true)
         relocationPrefix.set("${project.group}.libs")
         minimize()

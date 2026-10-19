@@ -16,10 +16,21 @@ public class APIUtils {
     private final String token;
     private final OkHttpClient client;
 
-    public APIUtils(final String apiUrl, final String token, final ConfigHolder.ProxyConfigHolder proxyConfig) {
+    public APIUtils(
+            final String apiUrl,
+            final String token,
+            final ConfigHolder.ProxyConfigHolder proxyConfig,
+            final String version
+    ) {
         this.apiUrl = apiUrl.replaceFirst("/+$", "");
         this.token = token;
-        final OkHttpClient.Builder builder = new OkHttpClient.Builder().pingInterval(Duration.ofSeconds(30));
+        final String userAgent = "rbw-hook/" + version;
+        // The api records this per token so the panel shows which jar each game server runs.
+        final OkHttpClient.Builder builder = new OkHttpClient.Builder()
+                .pingInterval(Duration.ofSeconds(30))
+                .addInterceptor(chain -> chain.proceed(
+                        chain.request().newBuilder().header("User-Agent", userAgent).build()
+                ));
         if (proxyConfig.enabled()) {
             final String ip = proxyConfig.ip();
             final int port = proxyConfig.port();

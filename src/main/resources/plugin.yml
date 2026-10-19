@@ -1,6 +1,6 @@
 main: dev.giqnt.rbw.hook.HookPlugin
 name: rbw-hook
-version: 1.0
+version: ${version}
 author: g1qnt
 description: RBW bot hook plugin
 softdepend:

@@ -6,6 +6,7 @@ import dev.giqnt.rbw.hook.adapter.AdapterFactory;
 import dev.giqnt.rbw.hook.leaderboard.LeaderboardManager;
 import dev.giqnt.rbw.hook.placeholder.RBWPlaceholderExpansion;
 import dev.giqnt.rbw.hook.profile.PlayerProfileManager;
+import dev.giqnt.rbw.hook.update.UpdateManager;
 import dev.giqnt.rbw.hook.utils.APIUtils;
 import dev.giqnt.rbw.hook.websocket.WebSocketManager;
 import lombok.Getter;
@@ -64,6 +65,7 @@ public class HookPlugin extends JavaPlugin {
         webSocketManager.connect();
         this.leaderboardManager.init();
         this.playerProfileManager.init();
+        new UpdateManager(this, this.api.httpClient(), getFile().getName()).init();
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
             this.placeholderExpansion = new RBWPlaceholderExpansion(this);
             this.placeholderExpansion.register();

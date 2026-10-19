@@ -26,6 +26,7 @@ public class APIUtils {
         this.token = token;
         final String userAgent = "rbw-hook/" + version;
         // The api records this per token so the panel shows which jar each game server runs.
+        // The client also fetches GitHub downloads: the api token stays per-request, never in an interceptor.
         final OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .pingInterval(Duration.ofSeconds(30))
                 .addInterceptor(chain -> chain.proceed(
@@ -47,6 +48,11 @@ public class APIUtils {
                     });
         }
         this.client = builder.build();
+    }
+
+    @NonNull
+    public OkHttpClient httpClient() {
+        return client;
     }
 
     @NonNull

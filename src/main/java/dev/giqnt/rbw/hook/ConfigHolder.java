@@ -12,7 +12,8 @@ public record ConfigHolder(
         @NonNull String token,
         @NonNull String groupPrefix,
         @NonNull ProxyConfigHolder proxy,
-        @NonNull TreeMap<Integer, Character> rankColors
+        @NonNull TreeMap<Integer, Character> rankColors,
+        boolean autoUpdate
 ) {
     public static ConfigHolder load(final FileConfiguration config) {
         return new ConfigHolder(
@@ -20,7 +21,8 @@ public record ConfigHolder(
                 config.getString("token", ""),
                 config.getString("group-prefix", ""),
                 ProxyConfigHolder.load(config.getConfigurationSection("proxy")),
-                loadRankColor(config.getConfigurationSection("rank-color"))
+                loadRankColor(config.getConfigurationSection("rank-color")),
+                config.getBoolean("auto-update", true)
         );
     }
 
@@ -47,6 +49,7 @@ public record ConfigHolder(
         config.set("group-prefix", groupPrefix);
         proxy.save(config.createSection("proxy"));
         config.set("rank-color", rankColors);
+        config.set("auto-update", autoUpdate);
         return config;
     }
 

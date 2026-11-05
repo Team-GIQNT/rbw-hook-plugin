@@ -14,6 +14,8 @@ import com.andrei1058.bedwars.api.events.server.ArenaDisableEvent;
 import com.andrei1058.bedwars.api.events.server.ArenaRestartEvent;
 import com.andrei1058.bedwars.arena.Arena;
 import com.andrei1058.bedwars.arena.team.TeamAssigner;
+import dev.giqnt.rbw.hook.ConfigHolder.MapSelectionMode;
+import dev.giqnt.rbw.hook.HookPlugin;
 import dev.giqnt.rbw.hook.api.BedWarsAdapter;
 import dev.giqnt.rbw.hook.api.GameCallbacks;
 import dev.giqnt.rbw.hook.api.GameCreateException;
@@ -22,7 +24,7 @@ import dev.giqnt.rbw.hook.api.MapInfo;
 import dev.giqnt.rbw.hook.api.PlayerResult;
 import dev.giqnt.rbw.hook.api.RankedGame;
 import dev.giqnt.rbw.hook.api.TeamResult;
-import lombok.RequiredArgsConstructor;
+import dev.giqnt.rbw.hook.voting.MapVoteManager;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -30,11 +32,17 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
-@RequiredArgsConstructor
-public class BedWars1058Adapter implements BedWarsAdapter, Listener {
+public class BedWars1058Adapter implements BedWarsAdapter, DeferredStartAdapter, Listener {
+    /** Maps offered by a vote. */
+    private static final int VOTE_MAP_COUNT = 3;
+    private final HookPlugin plugin;
     private final String groupPrefix;
+    private final MapVoteManager voteManager;
+    /** Arenas set aside for the maps of a vote in progress, so that no other game takes them. */
+    private final Set<String> reservedArenas = new HashSet<>();
     /**
      * Arena name to its ranked game. A session is removed before any end callback: the arena still fires leave and
      * restart events for it afterwards, which would otherwise call back a second time.
@@ -51,6 +59,13 @@ public class BedWars1058Adapter implements BedWarsAdapter, Listener {
             arena.getTeams().get(i).addPlayers(teams.get(i).toArray(new Player[0]));
         }
     };
+
+    public BedWars1058Adapter(final HookPlugin plugin, final String groupPrefix) {
+        this.plugin = plugin;
+        this.groupPrefix = groupPrefix;
+        this.voteManager = new MapVoteManager(plugin);
+        plugin.getServer().getPluginManager().registerEvents(voteManager, plugin);
+    }
 
     public Plugin bedWarsPlugin() {
         return JavaPlugin.getProvidingPlugin(BedWars.class);
@@ -71,7 +86,7 @@ public class BedWars1058Adapter implements BedWarsAdapter, Listener {
 
     @Override
     public boolean isReady(Player player) {
-        if (player == null || !player.isOnline()) {
+        if (player == null || !player.isOnline() || voteManager.isVoting(player)) {
             return false;
         }
         final var arena = Arena.getArenaByPlayer(player);
@@ -80,7 +95,82 @@ public class BedWars1058Adapter implements BedWarsAdapter, Listener {
 
     @Override
     public String startGame(final RankedGame game, final GameCallbacks callbacks) {
-        final IArena arena = pickArena(game);
+        return startGame(game, callbacks, pickArena(game));
+    }
+
+    /**
+     * With {@code random} this is {@link #startGame} as it has always been. With {@code voting} the players vote on
+     * {@value #VOTE_MAP_COUNT} maps first, and nobody joins an arena until the winning map is known.
+     */
+    @Override
+    public CompletableFuture<String> startGameAsync(final RankedGame game, final GameCallbacks callbacks) {
+        if (plugin.getConfigHolder().mapSelection() != MapSelectionMode.VOTING) {
+            return CompletableFuture.completedFuture(startGame(game, callbacks));
+        }
+        final Map<String, List<IArena>> available = findArenas(game);
+        if (available.isEmpty()) {
+            throw new GameCreateException("No available arena found");
+        }
+        final List<String> mapNames = new ArrayList<>(available.keySet());
+        Collections.shuffle(mapNames);
+        final List<String> candidates = List.copyOf(mapNames.subList(0, Math.min(VOTE_MAP_COUNT, mapNames.size())));
+        if (candidates.size() == 1) {
+            // Nothing to vote on.
+            return CompletableFuture.completedFuture(startGame(game, callbacks));
+        }
+        final Map<String, IArena> reserved = new HashMap<>();
+        for (final String mapName : candidates) {
+            final List<IArena> arenas = available.get(mapName);
+            final IArena arena = arenas.get(ThreadLocalRandom.current().nextInt(arenas.size()));
+            reserved.put(mapName, arena);
+            reservedArenas.add(arena.getArenaName());
+        }
+        final CompletableFuture<String> started = new CompletableFuture<>();
+        final CompletableFuture<String> vote;
+        try {
+            vote = voteManager.start(game.id(), game.players(), candidates);
+        } catch (Throwable ex) {
+            release(reserved);
+            throw ex;
+        }
+        vote.whenComplete((winner, ex) -> {
+            release(reserved);
+            if (ex != null) {
+                started.completeExceptionally(ex);
+                return;
+            }
+            try {
+                started.complete(startOnWinner(game, callbacks, winner, reserved.get(winner)));
+            } catch (Throwable t) {
+                started.completeExceptionally(t);
+            }
+        });
+        return started;
+    }
+
+    private void release(final Map<String, IArena> reserved) {
+        reserved.values().forEach(arena -> reservedArenas.remove(arena.getArenaName()));
+    }
+
+    private String startOnWinner(final RankedGame game, final GameCallbacks callbacks, final String mapName,
+                                 final IArena reserved) {
+        // The arena set aside may have been taken or closed in the meantime.
+        final List<IArena> arenas = findArenas(game).get(mapName);
+        if (arenas == null || arenas.isEmpty()) {
+            throw new GameCreateException("No available arena found", mapName);
+        }
+        final IArena arena = arenas.contains(reserved)
+                ? reserved
+                : arenas.get(ThreadLocalRandom.current().nextInt(arenas.size()));
+        return startGame(game, callbacks, arena);
+    }
+
+    /** Stops every map vote in progress. */
+    public void cancelVotes(final String reason) {
+        voteManager.cancelAll(reason);
+    }
+
+    private String startGame(final RankedGame game, final GameCallbacks callbacks, final IArena arena) {
         final var session = new ArenaSession(game, arena.getDisplayName(), callbacks);
         sessions.put(arena.getArenaName(), session);
         try {
@@ -107,6 +197,17 @@ public class BedWars1058Adapter implements BedWarsAdapter, Listener {
     }
 
     private IArena pickArena(final RankedGame game) {
+        final Map<String, List<IArena>> mapToArenas = findArenas(game);
+        if (mapToArenas.isEmpty()) {
+            throw new GameCreateException("No available arena found");
+        }
+        final List<List<IArena>> arenaGroups = List.copyOf(mapToArenas.values());
+        final List<IArena> arenas = arenaGroups.get(ThreadLocalRandom.current().nextInt(arenaGroups.size()));
+        return arenas.get(ThreadLocalRandom.current().nextInt(arenas.size()));
+    }
+
+    /** The arenas the game could be played in, by map name. */
+    private Map<String, List<IArena>> findArenas(final RankedGame game) {
         final List<List<Player>> teams = game.teams();
         final List<String> mapNames = game.mapNames();
         final Set<String> mapNameSet = mapNames == null ? null : Set.copyOf(mapNames);
@@ -116,6 +217,7 @@ public class BedWars1058Adapter implements BedWarsAdapter, Listener {
         final Map<String, List<IArena>> mapToArenas = new HashMap<>();
         for (final IArena arena : Arena.getArenas()) {
             if (!arena.getGroup().startsWith(groupPrefix)
+                    || reservedArenas.contains(arena.getArenaName())
                     || arena.getStatus() != GameState.waiting
                     || !arena.getPlayers().isEmpty()
                     || arena.getMaxPlayers() < teamCount * teamSize
@@ -127,12 +229,7 @@ public class BedWars1058Adapter implements BedWarsAdapter, Listener {
                 mapToArenas.computeIfAbsent(arena.getDisplayName(), k -> new ArrayList<>()).add(arena);
             }
         }
-        if (mapToArenas.isEmpty()) {
-            throw new GameCreateException("No available arena found");
-        }
-        final List<List<IArena>> arenaGroups = List.copyOf(mapToArenas.values());
-        final List<IArena> arenas = arenaGroups.get(ThreadLocalRandom.current().nextInt(arenaGroups.size()));
-        return arenas.get(ThreadLocalRandom.current().nextInt(arenas.size()));
+        return mapToArenas;
     }
 
     private boolean discard(final IArena arena, final ArenaSession session) {
@@ -146,6 +243,7 @@ public class BedWars1058Adapter implements BedWarsAdapter, Listener {
      * once this adapter is selected again. Games in progress go on unranked.
      */
     public void clearSessions() {
+        voteManager.cancelAll("The server's BedWars adapter changed");
         new HashMap<>(sessions).forEach((arenaName, session) -> {
             final IArena arena = Arena.getArenaByName(arenaName);
             if (arena != null && (arena.getStatus() == GameState.waiting || arena.getStatus() == GameState.starting)) {

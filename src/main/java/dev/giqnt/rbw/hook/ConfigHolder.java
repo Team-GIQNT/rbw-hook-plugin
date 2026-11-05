@@ -4,6 +4,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.util.TreeMap;
 
@@ -11,6 +12,7 @@ public record ConfigHolder(
         @NonNull String apiUrl,
         @NonNull String token,
         @NonNull String groupPrefix,
+        @NonNull MapSelectionMode mapSelection,
         @NonNull ProxyConfigHolder proxy,
         @NonNull TreeMap<Integer, Character> rankColors,
         boolean autoUpdate
@@ -20,6 +22,7 @@ public record ConfigHolder(
                 config.getString("api-url", ""),
                 config.getString("token", ""),
                 config.getString("group-prefix", ""),
+                MapSelectionMode.parse(config.getString("map-selection", "")),
                 ProxyConfigHolder.load(config.getConfigurationSection("proxy")),
                 loadRankColor(config.getConfigurationSection("rank-color")),
                 config.getBoolean("auto-update", true)
@@ -47,10 +50,44 @@ public record ConfigHolder(
         config.set("api-url", apiUrl);
         config.set("token", token);
         config.set("group-prefix", groupPrefix);
+        config.set("map-selection", mapSelection.configValue());
         proxy.save(config.createSection("proxy"));
         config.set("rank-color", rankColors);
         config.set("auto-update", autoUpdate);
         return config;
+    }
+
+    /** How the BedWars1058 adapter picks the map of a ranked game. */
+    public enum MapSelectionMode {
+        /** One random map, without asking the players. */
+        RANDOM("random"),
+        /** Three random maps, which the players vote on. */
+        VOTING("voting");
+
+        private final String configValue;
+
+        MapSelectionMode(final String configValue) {
+            this.configValue = configValue;
+        }
+
+        public String configValue() {
+            return configValue;
+        }
+
+        /** The mode named by a config value, or null if there is none. */
+        public static @Nullable MapSelectionMode find(final @Nullable String value) {
+            if (value == null) return null;
+            for (final MapSelectionMode mode : values()) {
+                if (mode.configValue.equalsIgnoreCase(value.trim())) return mode;
+            }
+            return null;
+        }
+
+        /** Like {@link #find}, but falls back to {@link #RANDOM}. */
+        public static MapSelectionMode parse(final @Nullable String value) {
+            final MapSelectionMode mode = find(value);
+            return mode == null ? RANDOM : mode;
+        }
     }
 
     public record ProxyConfigHolder(

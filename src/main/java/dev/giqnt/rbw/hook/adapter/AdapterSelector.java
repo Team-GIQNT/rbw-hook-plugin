@@ -27,7 +27,7 @@ public class AdapterSelector implements Listener {
     public AdapterSelector(final HookPlugin plugin) {
         this.plugin = plugin;
         this.builtIn = isClassLoaded("com.andrei1058.bedwars.BedWars")
-                ? new BedWars1058Adapter(plugin.getConfigHolder().groupPrefix())
+                ? new BedWars1058Adapter(plugin, plugin.getConfigHolder().groupPrefix())
                 : null;
     }
 
@@ -40,6 +40,11 @@ public class AdapterSelector implements Listener {
         if (selected == null) {
             plugin.getLogger().warning("No BedWars adapter registered, this server can't host games");
         }
+    }
+
+    /** Cancels the votes in progress, so that no player keeps a voting item or window. */
+    public void shutdown() {
+        if (builtIn != null) builtIn.cancelVotes("The server is shutting down");
     }
 
     @EventHandler

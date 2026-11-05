@@ -35,6 +35,7 @@ public class HookPlugin extends JavaPlugin {
     @Getter
     private GameManager gameManager;
     private RBWPlaceholderExpansion placeholderExpansion;
+    private AdapterSelector adapterSelector;
 
     @Override
     public void onEnable() {
@@ -59,7 +60,8 @@ public class HookPlugin extends JavaPlugin {
         this.leaderboardManager = new LeaderboardManager(this);
         this.playerProfileManager = new PlayerProfileManager(this);
         this.gameManager = new GameManager(this);
-        new AdapterSelector(this).init();
+        this.adapterSelector = new AdapterSelector(this);
+        this.adapterSelector.init();
         this.webSocketManager = new WebSocketManager(this);
 
         webSocketManager.connect();
@@ -75,6 +77,10 @@ public class HookPlugin extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (this.adapterSelector != null) {
+            // Before the websocket closes, so that games waiting on a vote still get their failure reply.
+            this.adapterSelector.shutdown();
+        }
         if (this.placeholderExpansion != null) {
             this.placeholderExpansion.unregister();
         }
@@ -86,7 +92,12 @@ public class HookPlugin extends JavaPlugin {
 
     @Override
     public void reloadConfig() {
-        configHolder = ConfigHolder.load(YamlConfiguration.loadConfiguration(configFile));
+        final YamlConfiguration yaml = YamlConfiguration.loadConfiguration(configFile);
+        final String mapSelection = yaml.getString("map-selection");
+        if (mapSelection != null && ConfigHolder.MapSelectionMode.find(mapSelection) == null) {
+            getLogger().warning("Unknown map-selection `" + mapSelection + "`, using random. Use random or voting.");
+        }
+        configHolder = ConfigHolder.load(yaml);
         saveConfig();
     }
 

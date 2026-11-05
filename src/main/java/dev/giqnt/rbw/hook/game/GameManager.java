@@ -2,6 +2,7 @@ package dev.giqnt.rbw.hook.game;
 
 import com.google.gson.JsonObject;
 import dev.giqnt.rbw.hook.HookPlugin;
+import dev.giqnt.rbw.hook.adapter.DeferredStartAdapter;
 import dev.giqnt.rbw.hook.api.BedWarsAdapter;
 import dev.giqnt.rbw.hook.api.GameCallbacks;
 import dev.giqnt.rbw.hook.api.GameCreateException;
@@ -21,6 +22,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -73,39 +75,75 @@ public class GameManager {
     /** Games past game.create, including ended ones whose result is still being reported. */
     public Collection<HostedGame> getGames() {
         final List<HostedGame> games = new ArrayList<>();
-        activeGames.values().forEach(game ->
+        // A game still waiting for its map, such as during a vote, is not past game.create yet.
+        activeGames.values().stream().filter(game -> game.mapName != null).forEach(game ->
                 games.add(new HostedGame(game.id, HostedGame.State.STARTED, game.mapName)));
         pendingResults.forEach((id, mapName) -> games.add(new HostedGame(id, HostedGame.State.ENDED, mapName)));
         return games;
     }
 
-    /** Returns the map name, or throws GameCreateException or whatever the adapter threw if the game did not start. */
-    public String startGame(final RankedGame game) {
+    /** The start of a game that is waiting for its map, such as during a vote, so a repeated game.create can join it. */
+    public @Nullable CompletableFuture<String> getPendingStart(final String id) {
+        final ActiveGame game = activeGames.get(id);
+        if (game == null || game.pendingStart == null || game.pendingStart.isDone()) return null;
+        return game.pendingStart;
+    }
+
+    /**
+     * Completes with the map name once the game is starting, or fails with GameCreateException or whatever the
+     * adapter threw if the game did not start. An adapter that needs no time completes it before this returns.
+     */
+    public CompletableFuture<String> startGame(final RankedGame game) {
         if (adapter == null) throw new IllegalStateException("This server can't host games");
         // Registered before startGame: an adapter without a countdown calls started() before returning.
         final ActiveGame active = new ActiveGame(game.id());
         activeGames.put(game.id(), active);
-        final String mapName;
+        final CompletableFuture<String> adapterResult;
         try {
-            mapName = adapter.startGame(game, active);
-            // A null name would read as "startGame has not returned" to the callbacks and lose the game silently.
-            if (mapName == null) {
-                plugin.getLogger().severe(adapter.getClass().getName() + " returned no map name for game #" + game.id());
-                throw new GameCreateException("The BedWars adapter returned no map name");
-            }
+            adapterResult = adapter instanceof DeferredStartAdapter deferred
+                    ? deferred.startGameAsync(game, active)
+                    : CompletableFuture.completedFuture(adapter.startGame(game, active));
         } catch (Throwable ex) {
-            activeGames.remove(game.id(), active);
-            if (active.state == State.PLAYING) {
-                plugin.getLogger().severe("Adapter threw after game #" + game.id()
-                        + " started; the api will create it again and void it");
-            }
+            abortStart(active);
             throw ex;
+        }
+        final CompletableFuture<String> result = new CompletableFuture<>();
+        active.pendingStart = result;
+        adapterResult.whenComplete((mapName, ex) -> {
+            if (ex != null) {
+                abortStart(active);
+                result.completeExceptionally(ex);
+                return;
+            }
+            try {
+                result.complete(finishStart(active, mapName));
+            } catch (Throwable t) {
+                result.completeExceptionally(t);
+            }
+        });
+        return result;
+    }
+
+    private String finishStart(final ActiveGame active, final @Nullable String mapName) {
+        // A null name would read as "startGame has not returned" to the callbacks and lose the game silently.
+        if (mapName == null) {
+            plugin.getLogger().severe(adapter.getClass().getName() + " returned no map name for game #" + active.id);
+            abortStart(active);
+            throw new GameCreateException("The BedWars adapter returned no map name");
         }
         if (active.endedEarly != null) {
             throw new GameCreateException(active.endedEarly, mapName);
         }
         active.mapName = mapName;
         return mapName;
+    }
+
+    private void abortStart(final ActiveGame active) {
+        activeGames.remove(active.id, active);
+        if (active.state == State.PLAYING) {
+            plugin.getLogger().severe("Adapter threw after game #" + active.id
+                    + " started; the api will create it again and void it");
+        }
     }
 
     private void reportStartFailure(final String id, final String mapName, final String reason) {
@@ -180,6 +218,8 @@ public class GameManager {
         private @Nullable String mapName;
         /** The reason of an end callback that came before startGame returned, which fails the start. */
         private @Nullable String endedEarly;
+        /** The result of startGame, null until the adapter has answered. */
+        private @Nullable CompletableFuture<String> pendingStart;
 
         private ActiveGame(final String id) {
             this.id = id;

@@ -43,6 +43,14 @@ public class GameCreateRequestHandler extends MessageHandler {
                 return;
             }
 
+            // The players of a game that is still voting are not ready, but a repeated request must not fail for it.
+            final var pending = games.getPendingStart(data.id());
+            if (pending != null) {
+                plugin.getLogger().info("Game " + data.id() + " is still choosing its map, replying once it has");
+                pending.whenComplete((mapName, ex) -> replyToStart(context, data.id(), mapName, ex));
+                return;
+            }
+
             final List<GameCreateRequestTeamMemberData> missingPlayers = new ArrayList<>();
             final List<List<Player>> teamPlayers = data.teams().stream()
                     .map(team -> team.members()
@@ -65,14 +73,30 @@ public class GameCreateRequestHandler extends MessageHandler {
                     .flatMap(Collection::stream)
                     .collect(Collectors.toUnmodifiableSet());
             plugin.getLogger().info("Creating game " + data.id());
-            final String mapName = games.startGame(new RankedGame(data.id(), data.mapNames(), players, teamPlayers));
-            plugin.getLogger().info("Successfully created game " + data.id() + " on map " + mapName);
-            sendGameCreateSuccess(context, mapName);
-        } catch (GameCreateException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to create game", e);
-            sendGameCreateFailure(context, e.getMessage(), e.getMapName());
+            games.startGame(new RankedGame(data.id(), data.mapNames(), players, teamPlayers))
+                    .whenComplete((mapName, ex) -> replyToStart(context, data.id(), mapName, ex));
         } catch (Exception e) {
-            plugin.getLogger().log(Level.SEVERE, "Error processing create_game request", e);
+            sendGameCreateError(context, e);
+        }
+    }
+
+    /** Runs on the main thread, possibly some seconds after the request when the players vote on the map. */
+    private void replyToStart(final MessageHandlerContext context, final String id, final String mapName,
+                              final Throwable error) {
+        if (error != null) {
+            sendGameCreateError(context, error);
+            return;
+        }
+        context.plugin().getLogger().info("Successfully created game " + id + " on map " + mapName);
+        sendGameCreateSuccess(context, mapName);
+    }
+
+    private void sendGameCreateError(final MessageHandlerContext context, final Throwable error) {
+        if (error instanceof GameCreateException e) {
+            context.plugin().getLogger().log(Level.SEVERE, "Failed to create game", e);
+            sendGameCreateFailure(context, e.getMessage(), e.getMapName());
+        } else {
+            context.plugin().getLogger().log(Level.SEVERE, "Error processing create_game request", error);
             sendGameCreateFailure(context, "Internal server error");
         }
     }

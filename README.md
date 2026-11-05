@@ -37,6 +37,7 @@ Don't reload rbw-hook with `/reload` or a plugin manager. Games in progress live
 | `api-url` | The RBW api address, `https://rbw-api.giqnt.dev` |
 | `token` | The game server token issued under "Game servers" on the RBW web panel. It also decides which community the server belongs to |
 | `group-prefix` | BedWars1058 only, see below |
+| `map-selection` | BedWars1058 only: `random` (default) picks one random map, `voting` lets the players vote on 3 random maps for 15 seconds first. See below |
 | `proxy.enabled`, `proxy.username`, `proxy.password`, `proxy.ip`, `proxy.port` | An HTTP proxy for outgoing requests. Off by default |
 | `rank-color.<elo>` | A one-character color code for `%rbw_rank_color%`; a player gets the entry with the highest `<elo>` not above their elo |
 | `auto-update` | Download new releases (default `true`) |
@@ -51,6 +52,19 @@ Set `group-prefix`. Arenas whose group starts with it are used for ranked games:
 - The arena group is the map category, so it must match the queue's map category on the RBW web panel. The map name
   is the arena's display name.
 - Players can only join those arenas through a ranked game.
+
+### Map selection
+
+`map-selection` in `config.yml` decides how the map of a ranked game is chosen. Restart the server after changing it.
+
+- `random`: one random map, as it always was.
+- `voting`: 3 unique random maps are drawn from the same arenas `random` would use, and every player of the game gets a
+  voting window and a map item in the 3rd hotbar slot, which reopens it. Players can change their vote until the vote
+  ends: when everybody has voted, or after 15 seconds. The map with the most votes wins, a tie or no votes at all is
+  decided at random. Nobody joins an arena before the vote is over, and the reply to RBW's `game.create` request is sent
+  once the winning map is known. If a player leaves during the vote, the game fails to start like it does when a player
+  leaves during the countdown. If fewer than 3 maps are available the vote is between those, and with only one the game
+  starts on it right away.
 
 ## Other BedWars plugins
 
